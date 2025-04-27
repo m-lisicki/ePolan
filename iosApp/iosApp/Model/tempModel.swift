@@ -24,3 +24,8 @@ struct Task: Identifiable, Hashable {
     var numberAddon: String?
     var taken: Int
 }
+
+enum status: String {
+    case upcoming = "Upcoming"
+    case ongoing = "Ongoing"
+}

@@ -16,26 +16,11 @@ struct PointsView: View {
         Lesson(id: 3, lessonName: "Integrating with APIs", tasks: [Task(assigned: true, number: 1, numberAddon: nil, taken: 10), Task(assigned: false, number: 2, numberAddon: nil, taken: 0), Task(assigned: true, number: 3, numberAddon: nil, taken: 3)], deadline: Date(timeIntervalSinceNow: -6 * 60 * 60))
         
     ]
-    
-    var filteredLessons: [Lesson] {
-        if searchText.isEmpty {
-            return lessons
-        } else {
-            return lessons.filter { $0.lessonName.localizedCaseInsensitiveContains(searchText) }
-        }
-    }
-    
-    enum status: String {
-        case upcoming = "Upcoming"
-        case ongoing = "Ongoing"
-    }
-    
-    @State var searchText: String = ""
-    
+        
     var body: some View {
         VStack {
             NavigationStack {
-                let groupedLessons = Dictionary(grouping: filteredLessons) { lesson in
+                let groupedLessons = Dictionary(grouping: lessons) { lesson in
                     lesson.deadline > Date() ? status.upcoming.rawValue : status.ongoing.rawValue
                 }
                 
@@ -69,7 +54,6 @@ struct PointsView: View {
                         }
                     }
                 }
-                
             }
         }
     }

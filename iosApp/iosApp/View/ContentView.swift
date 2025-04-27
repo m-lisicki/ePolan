@@ -1,5 +1,5 @@
 import SwiftUI
-//import Shared
+import Shared
 
 struct ContentView: View {
 #if RELEASE

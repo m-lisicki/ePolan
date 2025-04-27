@@ -7,7 +7,7 @@ data class ExerciseDto(
         val classDate: LocalDateTime,
         val groupName: String,
         val exerciseNumber: Int,
-        val subpoint: String,
+        val subPoint: String,
         val name: String,
         val instructor: String,
         val creator: String,
