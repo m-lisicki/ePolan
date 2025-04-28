@@ -8,7 +8,6 @@
 
 
 import SwiftUI
-import UIKit
 
 struct SignInView: View {
     @State private var showLogin = false
