@@ -1,5 +1,5 @@
 import SwiftUI
-//import Shared
+import Shared
 
 struct ContentView: View {
 #if RELEASE
@@ -28,9 +28,9 @@ struct ContentView: View {
 struct BottomBarView: View {
     var body: some View {
         TabView {
-            PointsView()
+            CourseView()
                 .tabItem {
-                    Label("Points", systemImage: "star")
+                    Label("Courses", systemImage: "book")
                 }
             UserManagementView()
                 .tabItem {

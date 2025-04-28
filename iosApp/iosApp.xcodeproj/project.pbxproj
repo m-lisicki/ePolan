@@ -24,7 +24,6 @@
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		D42E4BB52DBD9296008C804D /* View */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = View; sourceTree = "<group>"; };
-		D4CF6FEF2DBEAFB400A07846 /* Model */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Model; sourceTree = "<group>"; };
 		D4DEBBE72DBE3DDD00218D24 /* OAuth */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = OAuth; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
@@ -76,7 +75,6 @@
 		7555FF7D242A565900829871 /* iosApp */ = {
 			isa = PBXGroup;
 			children = (
-				D4CF6FEF2DBEAFB400A07846 /* Model */,
 				D4DEBBE72DBE3DDD00218D24 /* OAuth */,
 				D42E4BB52DBD9296008C804D /* View */,
 				058557BA273AAA24004C7B11 /* Assets.xcassets */,
@@ -114,7 +112,6 @@
 			);
 			fileSystemSynchronizedGroups = (
 				D42E4BB52DBD9296008C804D /* View */,
-				D4CF6FEF2DBEAFB400A07846 /* Model */,
 				D4DEBBE72DBE3DDD00218D24 /* OAuth */,
 			);
 			name = iosApp;

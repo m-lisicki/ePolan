@@ -7,50 +7,52 @@
 //
 
 import SwiftUI
+import Shared
 
+// TODO: - Fetch real ongoing declarations selection
 struct TasksDetailView: View {
     @State private var isEditing = false
-    @State var tasks: [Task]
+    
+    @State var exercises: [ExerciseDto]
+    
     let name: String
-    @Binding var selection: Set<UUID>
+    @State var selection: Set<UUID> = []
     
     var body: some View {
-        List(tasks, selection: $selection) { task in
+        List(exercises, id: \.id, selection: $selection) { exercise in
             HStack {
-                Text("\(task.number)\(task.numberAddon ?? "").")
+                Text("\(exercise.exerciseNumber)\(exercise.subpoint ?? "").")
             }
-            .tag(task.id)
+            .tag(exercise.id)
         }
         .onAppear {
             isEditing = true
         }
         .environment(\.editMode, .constant(isEditing ? .active : .inactive))
         .onChange(of: selection.count) { _, _ in
-            updateTasksAssignment()
+            postExerciseDeclaration()
         }
         .navigationTitle(name)
     }
     
-    private func updateTasksAssignment() {
-        for index in tasks.indices {
-            tasks[index].assigned = selection.contains(tasks[index].id)
-        }
-        
+    private func postExerciseDeclaration() {
+        // TODO: - POST for updating declaration
     }
 }
 
+// TODO: - Fetch which tasks are assigned
 struct TasksAssignedView: View {
     let title: String
-    let tasks: [Task]
+    let tasks: Array<ExerciseDto>
     
     var body: some View {
-        List(tasks) { task in
-            HStack {
-                Text("\(task.number)\(task.numberAddon ?? "").")
-                Spacer()
-                Text(task.assigned ? "Assigned 🎉" : "Not assigned")
+            List(tasks, id: \.id) { task in
+                HStack {
+                    Text("\(task.id)\(task.subpoint ?? "").")
+                    Spacer()
+                    //Text(task.assigned ? "Assigned 🎉" : "Not assigned")
+                }
             }
+            .navigationTitle(title)
         }
-        .navigationTitle(title)
-    }
 }

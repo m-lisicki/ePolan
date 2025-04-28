@@ -20,3 +20,7 @@ struct UserManagementView: View {
         }
     }
 }
+
+#Preview {
+    UserManagementView()
+}
