@@ -8,6 +8,7 @@
 
 import SwiftUI
 import AppAuth
+import Shared
 
 class OAuthManager: ObservableObject {
     static let shared = OAuthManager()
@@ -16,9 +17,11 @@ class OAuthManager: ObservableObject {
     @Published var authState: OIDAuthState?
     private var currentAuthorizationFlow: OIDExternalUserAgentSession?
     
-    let clientID = "account"
+    let clientID = "ClassMatcher"
     let clientSecret = ""
     let redirectURI = URL(string: "com.baklava:/oauthredirect")!
+    
+    var dbCommunicationServices: DBCommunicationServices?
     
     let configuration = OIDServiceConfiguration(
         authorizationEndpoint: URL(string: "http://localhost:8280/realms/Users/protocol/openid-connect/auth")!,
@@ -58,6 +61,9 @@ class OAuthManager: ObservableObject {
                 } else if let state = state {
                     self?.authState = state
                     log.info("Access token: \(state.lastTokenResponse?.accessToken ?? "nil")")
+                    if let accessToken = state.lastTokenResponse?.accessToken {
+                        self?.dbCommunicationServices = DBCommunicationServices(token: accessToken)
+                    }
                 } else {
                     log.error("Unknown authorization error")
                 }
@@ -105,6 +111,7 @@ class OAuthManager: ObservableObject {
                     log.error("Logout error: \(error.localizedDescription)")
                 } else {
                     log.info("Logged out successfully")
+                    self?.dbCommunicationServices = nil
                 }
             }
         }

@@ -23,7 +23,14 @@ enum Day: Int, CaseIterable {
     }
 }
 
+#Preview {
+    ContentView()
+}
+
+// TODO: - Better date picker view
 struct CreateCourseView: View {
+    @Binding var courses: Array<CourseDto>?
+    
     @State private var name = ""
     @State private var instructor = ""
     @State private var selectedDays = Set<Day>()
@@ -33,10 +40,13 @@ struct CreateCourseView: View {
     }
     
     @State private var emailInput = ""
+        
+    @State private var emails = Array<String>()
     
-    var trimmed: String { emailInput.trimmingCharacters(in: .whitespacesAndNewlines) }
+    @State private var showingAlert = false
+    @State private var alertMessage = ""
     
-    @State private var emails: [String] = []
+    @Environment(\.presentationMode) var presentationMode
     
     var body: some View {
         VStack(spacing: 16) {
@@ -69,10 +79,10 @@ struct CreateCourseView: View {
                     .autocapitalization(.none)
                 
                 Button("Add") {
-                    emails.append(trimmed)
+                    emails.append(EmailHelper.trimCharacters(emailInput))
                     emailInput = ""
                 }
-                .disabled(!CreateCourseView.isValidEmail(trimmed) || trimmed.isEmpty)
+                .disabled(!EmailHelper.isEmailValid(emailInput))
                 .buttonStyle(.bordered)
             }
             
@@ -87,19 +97,33 @@ struct CreateCourseView: View {
                     LessonTimeDto(dayOfWeek: Int32($0.rawValue), hour: 0, minute: 0)
                 }.reduce(into: []) { $0.insert($1) }
                 
-                //TODO: - Broken due to Kotlin implementation
-                /*
                 Task {
                     do {
-                        try await postsService.createCourse(
+                        let newCourse = try await OAuthManager.shared.dbCommunicationServices?.createCourse(
                             name: name,
                             instructor: instructor,
-                            lessonTimeDtos: lessonTimeDtos
+                            lessonTimeDtos: lessonTimeDtos,
+                            students: Set(emails)
                         )
+                        
+                        if let newCourse = newCourse {
+                            if var currentCourses = courses {
+                                currentCourses.append(newCourse)
+                                courses = currentCourses
+                            } else {
+                                courses = [newCourse]
+                            }
+                        } else {
+                            throw NSError(domain: "", code: 0, userInfo: nil)
+                        }
+                        
+                        self.presentationMode.wrappedValue.dismiss()
                     } catch {
                         log.error("\(error)")
+                        alertMessage = "An unexpected error occurred while creating the course"
+                        showingAlert = true
                     }
-                }*/
+                }
             }
             .buttonStyle(.borderedProminent)
             .disabled(!isFormValid)
@@ -108,9 +132,24 @@ struct CreateCourseView: View {
         .padding()
         .navigationTitle("Create Course")
         .navigationBarTitleDisplayMode(.inline)
+        .alert(isPresented: $showingAlert) {
+                    Alert(
+                        title: Text("Error"),
+                        message: Text(alertMessage),
+                        dismissButton: .default(Text("OK"))
+                    )
+                }
     }
     
-    static private func isValidEmail(_ email: String) -> Bool {
-        return email.range(of: #"^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$"#, options: .regularExpression) != nil
+}
+
+struct EmailHelper {
+    static func trimCharacters(_ email: String) -> String {
+        return email.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    static func isEmailValid(_ email: String) -> Bool {
+        let email = trimCharacters(email)
+        return !email.isEmpty && email.range(of: #"^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$"#, options: .regularExpression) != nil
     }
 }

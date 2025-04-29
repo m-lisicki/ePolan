@@ -5,9 +5,10 @@ package com.polan.baklava
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.LocalTime
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlin.uuid.Uuid
 import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 // Pojedyncze punkty z aktywności przydzielone użytkownikowi
 @Serializable
@@ -26,15 +27,18 @@ data class CourseDto(
     var instructor: String,
     var creator: String,
     var lessonTimes: Set<LessonTime>,
-    var lessons: Set<LessonDto>
+    var lessons: Set<LessonDto>?
 )
 
 // Dane pojedynczej sesji (lekcji)
 @Serializable
 data class LessonDto(
-    val id: Long,
+    val id: Uuid,
     val classDate: LocalDateTime,
-    val courseName: String
+    val courseName: String,
+    val exercises: List<ExerciseDto>,
+    @SerialName("status")
+    val lessonStatus: LessonStatus
 )
 
 // Czas pojedynczej lekcji
@@ -44,7 +48,7 @@ class LessonTime (
     val time: LocalTime
 )
 
-// Pojedyncza deklaracja zadań przypisana do użytkownika i pojedynczej sesji (lekcji)
+// Pojedyncza deklaracja zadań przypisana do pojedynczej sesji (lekcji)
 @Serializable
 data class DeclarationDto(
     val id: Uuid,
@@ -63,10 +67,17 @@ enum class DeclarationStatus {
     APPROVED
 }
 
+@Serializable
+enum class LessonStatus {
+    PAST,
+    NEAR,
+    FUTURE
+}
+
 // Dane pojedynczego ćwiczenia z danych zajęć
 @Serializable
 data class ExerciseDto(
-    val id: Int,
+    val id: Uuid,
     val classDate: LocalDateTime,
     val groupName: String,
     val exerciseNumber: Int,
@@ -78,7 +89,8 @@ data class NewCourseDto(
     var id: Uuid,
     var name: String,
     var instructor: String,
-    var lessonTimes: Set<LessonTime>
+    var lessonTimes: Set<LessonTime>,
+    var students: Set<String>
 )
 
 // Dane użytkownika
