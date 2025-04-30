@@ -9,7 +9,6 @@
 import SwiftUI
 import Shared
 
-// TODO: - Fetch real ongoing declarations selection and exercises
 struct TasksDetailView: View {
     @State private var isEditing = true
     
@@ -19,7 +18,7 @@ struct TasksDetailView: View {
     @State var exercises: Array<ExerciseDto>?
     @State var declarations: Set<DeclarationDto>?
     
-    @State var selection = Set<ExerciseDto>()
+    @State var selection: Set<ExerciseDto>
     
     @State var savingError = false
     
@@ -39,21 +38,22 @@ struct TasksDetailView: View {
                 Text("No exercises")
             }
         }
-        .onChange(of: selection) { old, new in
-            if old.count < new.count {
-                new.subtracting(old).forEach { exercise in postExerciseDeclaration(exerciseID: exercise.id) }
-            } else {
-                old.subtracting(new).forEach { exercise in postExerciseUnDeclaration(exerciseID: exercise.id) }
+        .onChange(of: selection) { oldSelection, newSelection in
+            
+            let added = newSelection.subtracting(oldSelection)
+            let removed = oldSelection.subtracting(newSelection)
+
+            for exercise in added {
+                postExerciseDeclaration(exerciseId: exercise.id)
             }
-        }
-        .onAppear {
-            Task {
-                exercises = try await OAuthManager.shared.dbCommunicationServices?.getAllExercises(lessonId: lesson.id)
-                declarations = try await OAuthManager.shared.dbCommunicationServices?.getAllLessonDeclarations(lessonId: lesson.id)
-                print(exercises?.compactMap { $0.id } ?? "nothing")
-            }
-            if let declarations = declarations {
-                selection = Set(declarations.filter { $0.declarationStatus == DeclarationStatus.waiting }.compactMap { $0.exercise })
+
+            for exercise in removed {
+                let matchingDeclarations = declarations?.filter { $0.exercise == exercise && $0.declarationStatus == DeclarationStatus.waiting}
+                if let matchingDeclarations = matchingDeclarations {
+                    for declaration in matchingDeclarations {
+                        postExerciseUnDeclaration(declarationId: declaration.id)
+                    }
+                }
             }
         }
         .navigationTitle(title)
@@ -63,69 +63,29 @@ struct TasksDetailView: View {
             }
         }
     }
-    
-    // TODO: - POST for deleting declaration
-    
-    private func postExerciseUnDeclaration(exerciseID: KotlinUuid) {
+        
+    private func postExerciseUnDeclaration(declarationId: KotlinUuid) {
         Task {
-            let result = try await OAuthManager.shared.dbCommunicationServices?.postUnDeclaration(exerciseId: exerciseID)
+            let result = try await OAuthManager.shared.dbCommunicationServices?.postUnDeclaration(declarationId: declarationId)
             if result == 200 {
                 savingError = false
             } else {
                 savingError = true
             }
+            declarations = try await OAuthManager.shared.dbCommunicationServices?.getAllLessonDeclarations(lessonId: lesson.id)
         }
     }
     
     
-    private func postExerciseDeclaration(exerciseID: KotlinUuid) {
+    private func postExerciseDeclaration(exerciseId: KotlinUuid) {
         Task {
-            let result = try await OAuthManager.shared.dbCommunicationServices?.postDeclaration(exerciseId: exerciseID)
+            let result = try await OAuthManager.shared.dbCommunicationServices?.postDeclaration(exerciseId: exerciseId)
             if result == 200 {
                 savingError = false
             } else {
                 savingError = true
             }
+            declarations = try await OAuthManager.shared.dbCommunicationServices?.getAllLessonDeclarations(lessonId: lesson.id)
         }
-    }
-}
-
-// TODO: - Fetch points, and add controler to add them to lesson
-struct TasksAssignedView: View {
-    let title: String
-    let lesson: LessonDto
-    @State var exercises: Array<ExerciseDto>?
-    @State var declarations: Set<DeclarationDto>?
-    @State var points: Int = 0
-    
-    @State var sheetIsPresented: Bool = false
-    
-    var body: some View {
-        VStack {
-            if let exercises = exercises {
-                List(exercises, id: \.id) { exercise in
-                    HStack {
-                        Text("\(exercise.exerciseNumber)\(exercise.subpoint ?? "").")
-                        Spacer()
-                        Text(declarations?.contains(where: { $0.exercise == exercise && $0.declarationStatus == DeclarationStatus.approved }) ?? false ? "Assigned 🎉" : "Not assigned")
-                    }
-                }
-            } else {
-                Text("No exercises")
-            }
-        }
-        .toolbar {
-            Button(action: { sheetIsPresented = true } ) {
-                Image(systemName: "plus.forwardslash.minus")
-            }
-        }
-        .onAppear {
-            Task {
-                exercises = try await OAuthManager.shared.dbCommunicationServices?.getAllExercises(lessonId: lesson.id)
-                declarations = try await OAuthManager.shared.dbCommunicationServices?.getAllLessonDeclarations(lessonId: lesson.id)
-                
-            }
-        }
-        .navigationTitle(title)
     }
 }

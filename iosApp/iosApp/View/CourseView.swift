@@ -21,9 +21,14 @@ struct CourseView: View {
             VStack {
                 if let courses = courses {
                     List(courses, id: \.id) { course in
-                        NavigationLink(destination: LessonView(course: course)) {
+                        NavigationLink(destination: LessonsView(course: course, lessons: course.lessons)) {
                             Text(course.name)
                                 .font(.headline)
+                        }
+                    }
+                    .refreshable {
+                        Task {
+                            await fetchData()
                         }
                     }
                     .navigationTitle("Courses")
@@ -43,11 +48,15 @@ struct CourseView: View {
         }
         .onAppear {
             Task {
-                let setCourses = try? await OAuthManager.shared.dbCommunicationServices?.getAllCourses()
-                if let setCourses = setCourses {
-                    courses = Array(setCourses).sorted { $0.name < $1.name }
-                }
+                await fetchData()
             }
+        }
+    }
+    
+    private func fetchData() async {
+        let setCourses = try? await OAuthManager.shared.dbCommunicationServices?.getAllCourses()
+        if let setCourses = setCourses {
+            courses = Array(setCourses).sorted { $0.name < $1.name }
         }
     }
 }
@@ -59,36 +68,39 @@ struct ModifyCourseUsers: View {
     @State var showingAlert = false
     @State var email: String = ""
     
-    @State var currentUser: String = ""
-
+    var currentUser: String {
+        OAuthManager.shared.email ?? ""
+    }
+    
     
     var body: some View {
         VStack {
-                List(users, id: \.self) { user in
-                    Text(user)
-                        .background(user == currentUser ? Color.yellow : Color.clear)
-                        .swipeActions {
-                            if (user != currentUser) {
-                                Button("Delete") {
-                                    removeUser(email: user)
-                                }
-                                .tint(.red)
+            List(users, id: \.self) { user in
+                Text(user)
+                    .bold(user == currentUser)
+                    .swipeActions {
+                        if (user != currentUser) {
+                            Button("Delete", role: .destructive) {
+                                removeUser(email: user)
                             }
                         }
-                }
-                .listStyle(.plain)
-                .padding()
-                HStack {
-                    TextField("Email", text: $email)
-                        .textFieldStyle(.roundedBorder)
-                    Button("Add") {
-                        addUser(email: EmailHelper.trimCharacters(email))
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!EmailHelper.isEmailValid(email) || users.contains(EmailHelper.trimCharacters(email)))
+            }
+            .listStyle(.plain)
+            .padding()
+            HStack {
+                TextField("Email", text: $email)
+                    .textFieldStyle(.roundedBorder)
+                Button("Add") {
+                    addUser(email: EmailHelper.trimCharacters(email))
                 }
-                .padding()
+                .buttonStyle(.borderedProminent)
+                .disabled(!EmailHelper.isEmailValid(email) || users.contains(EmailHelper.trimCharacters(email)))
+            }
+            .padding()
         }
+        .navigationTitle("Modify course users")
+        .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             Task {
                 let userSet = try await OAuthManager.shared.dbCommunicationServices?.getAllStudents(courseId: course.id)
@@ -126,79 +138,6 @@ struct ModifyCourseUsers: View {
                 return
             }
             self.users.removeAll { $0 == email }
-        }
-    }
-}
-
-// TODO: - Rows names should display dates - not courseName
-// everything with lessonAndTask.lesson.courseName -> Replace
-struct LessonView: View {
-    let course: CourseDto
-    @State var lessons: [LessonDto]?
-    
-    var body: some View {
-        VStack {
-            if let lessons = lessons {
-                List {
-                    ForEach(lessons, id: \.id) { lesson in
-                        Section(header: Text(lesson.statusText)) {
-                            lessonView(for: lesson)
-                        }
-                    }
-                }
-                .toolbar {
-                    NavigationLink(destination: ModifyCourseUsers(course: course)) {
-                        Image(systemName: "person.fill")
-                    }
-                }
-            } else {
-                Image(systemName: "person.crop.circle")
-                Text("No lessons")
-            }
-        }
-        .onAppear {
-            Task {
-                lessons = try? await OAuthManager.shared.dbCommunicationServices?.getAllLessons(courseId: course.id)
-                if let lessons = lessons {
-                    self.lessons = lessons
-                }
-            }
-        }
-    }
-    
-    @ViewBuilder
-    private func lessonView(for lesson: LessonDto) -> some View {
-        if !lesson.exercises.isEmpty {
-            if lesson.lessonStatus == .past {
-                NavigationLink(destination: TasksAssignedView(title: "TODO", lesson: lesson)) {
-                    Text(lesson.courseName)
-                        .font(.headline)
-                }
-            } else if lesson.lessonStatus == .near {
-                NavigationLink(destination: TasksDetailView(title: "TODO", lesson: lesson)) {
-                    VStack(alignment: .leading) {
-                        Text(lesson.courseName)
-                            .font(.headline)
-                    }
-                }
-            } else {
-                Text(lesson.courseName)
-                    .font(.headline)
-            }
-        } else {
-            Text(lesson.courseName)
-                .font(.headline)
-        }
-    }
-}
-
-extension LessonDto {
-    var statusText: String {
-        switch lessonStatus {
-        case .past: return "Past"
-        case .near: return "Near"
-        case .future: return "Future"
-        default: return "Unknown"
         }
     }
 }
