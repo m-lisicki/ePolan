@@ -15,42 +15,55 @@ import Shared
 
 struct CourseView: View {
     @State var courses: Array<CourseDto>?
-    
+    @EnvironmentObject var refreshController: RefreshController
+
     var body: some View {
         NavigationStack {
             VStack {
                 if let courses = courses {
-                    List(courses, id: \.id) { course in
-                        NavigationLink(destination: LessonsView(course: course, lessons: course.lessons)) {
-                            Text(course.name)
-                                .font(.headline)
+                    ZStack {
+                        List(courses, id: \.id) { course in
+                            NavigationLink(destination: LessonsView(course: course)) {
+                                    Text(course.name)
+                                        .font(.headline)
+                                }
+                        }
+                        .refreshable {
+                            Task {
+                                await fetchData()
+                            }
+                        }
+                        if courses == [] {
+                            VStack {
+                                Image(systemName: "compass.drawing")
+                                    .imageScale(.large)
+                                Text("No courses")
+                            }
                         }
                     }
-                    .refreshable {
-                        Task {
-                            await fetchData()
-                        }
-                    }
-                    .navigationTitle("Courses")
                 } else {
                     VStack {
-                        Image(systemName: "exclamationmark.triangle")
+                        Image(systemName: "slowmo")
+                            .symbolEffect(.variableColor.iterative.hideInactiveLayers.nonReversing, options: .repeat(.continuous))
                             .imageScale(.large)
-                        Text("No courses found!")
                     }
                 }
             }
+            .navigationTitle("Courses")
             .toolbar {
                 NavigationLink(destination: CreateCourseView(courses: $courses)) {
                     Image(systemName: "plus")
                 }
             }
         }
-        .onAppear {
-            Task {
-                await fetchData()
-            }
+        .task {
+            await fetchData()
         }
+        .onReceive(refreshController.refreshSignal) { _ in
+                    Task {
+                        await fetchData()
+                    }
+                }
     }
     
     private func fetchData() async {
@@ -68,6 +81,8 @@ struct ModifyCourseUsers: View {
     @State var showingAlert = false
     @State var email: String = ""
     
+    @EnvironmentObject var refreshController: RefreshController
+
     var currentUser: String {
         OAuthManager.shared.email ?? ""
     }
@@ -81,8 +96,12 @@ struct ModifyCourseUsers: View {
                     .swipeActions {
                         if (user != currentUser) {
                             Button("Delete", role: .destructive) {
-                                removeUser(email: user)
+                                Task {
+                                    await removeUser(email: user)
+                                }
+                                refreshController.triggerRefresh()
                             }
+                            .tint(.red)
                         }
                     }
             }
@@ -92,7 +111,10 @@ struct ModifyCourseUsers: View {
                 TextField("Email", text: $email)
                     .textFieldStyle(.roundedBorder)
                 Button("Add") {
-                    addUser(email: EmailHelper.trimCharacters(email))
+                    Task {
+                        await addUser(email: EmailHelper.trimCharacters(email))
+                    }
+                    refreshController.triggerRefresh()
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!EmailHelper.isEmailValid(email) || users.contains(EmailHelper.trimCharacters(email)))
@@ -101,13 +123,12 @@ struct ModifyCourseUsers: View {
         }
         .navigationTitle("Modify course users")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            Task {
-                let userSet = try await OAuthManager.shared.dbCommunicationServices?.getAllStudents(courseId: course.id)
+        .task {
+                let userSet = try? await OAuthManager.shared.dbCommunicationServices?.getAllStudents(courseId: course.id)
                 if let userSet = userSet {
                     users = Array(userSet).sorted { $0 < $1 }
                 }
-            }
+            
         }
         .alert(isPresented: $showingAlert) {
             Alert(
@@ -118,26 +139,24 @@ struct ModifyCourseUsers: View {
         }
     }
     
-    func addUser(email: String) {
-        Task {
-            let status = try await OAuthManager.shared.dbCommunicationServices?.addStudent(courseId: course.id, email: email)
+    func addUser(email: String) async {
+            let status = try? await OAuthManager.shared.dbCommunicationServices?.addStudent(courseId: course.id, email: email)
             if status != 200 {
                 showingAlert = true
                 return
             }
             self.users.append(email)
             self.email = ""
-        }
+        
     }
     
-    func removeUser(email: String) {
-        Task {
-            let status = try await OAuthManager.shared.dbCommunicationServices?.removeStudent(courseId: course.id, email: email)
+    func removeUser(email: String) async {
+            let status = try? await OAuthManager.shared.dbCommunicationServices?.removeStudent(courseId: course.id, email: email)
             if status != 200 {
                 showingAlert = true
                 return
             }
             self.users.removeAll { $0 == email }
-        }
+        
     }
 }

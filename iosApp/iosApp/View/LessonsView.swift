@@ -17,6 +17,9 @@ struct LessonsView: View {
     @State var points: Int?
     @State var pointsArray: Array<PointDto>?
     
+    @State var showCreate = false
+    @EnvironmentObject var refreshController: RefreshController
+    
     var groupedLessons: [String: [LessonDto]]? {
         var groupedLessons = Dictionary<String, [LessonDto]>()
         
@@ -50,36 +53,48 @@ struct LessonsView: View {
     var body: some View {
         VStack {
             if let groupedLessons = groupedLessons {
-                List {
-                    ForEach(groupedLessons.keys.sorted(), id: \.self) { status in
-                        Section(header: Text(status)) {
-                            ForEach(groupedLessons[status] ?? [], id: \.self) { lesson in
-                                lessonView(for: lesson, activity: lessonActivity(for: lesson))
-                                    .swipeActions {
-                                        Button("Delete", role: .destructive) {
-                                            Task {
-                                                try await OAuthManager.shared.dbCommunicationServices?.deleteLesson(lessonId: lesson.id)
+                ZStack {
+                    List {
+                        ForEach(groupedLessons.keys.sorted(), id: \.self) { status in
+                            Section(header: Text(status)) {
+                                ForEach(groupedLessons[status] ?? [], id: \.self) { lesson in
+                                    lessonView(for: lesson, activity: lessonActivity(for: lesson))
+                                        .swipeActions {
+                                            Button("Delete", role: .destructive) {
+                                                Task {
+                                                    try await OAuthManager.shared.dbCommunicationServices?.deleteLesson(lessonId: lesson.id)
+                                                    await fetchLessons()
+                                                }
                                             }
-                                            self.lessons?.remove(lesson)
+                                            .tint(.red)
                                         }
-                                    }
+                                }
                             }
                         }
                     }
-                }
-                .refreshable {
-                    Task {
-                        let lessons = try? await OAuthManager.shared.dbCommunicationServices?.getAllLessons(courseId: course.id)
-                        if let lessons = lessons {
-                            self.lessons = Set(lessons)
+                    .refreshable {
+                        Task {
+                            await fetchLessons()
                         }
-                        await fetchData()
+                    }
+                    if groupedLessons == [:] {
+                        VStack {
+                            Image(systemName: "person.crop.circle")
+                                .imageScale(.large)
+                            Text("No lessons")
+                        }
                     }
                 }
             } else {
-                Image(systemName: "person.crop.circle")
-                    .imageScale(.large)
-                Text("No lessons")
+                VStack {
+                    Image(systemName: "slowmo")
+                        .symbolEffect(.variableColor.iterative.hideInactiveLayers.nonReversing, options: .repeat(.continuous))
+                        .imageScale(.large)
+                }
+            }
+            if showCreate {
+                CreateLessonView(course: course, showCreate: $showCreate)
+                    .transition(.slide)
             }
         }
         .toolbar {
@@ -90,12 +105,30 @@ struct LessonsView: View {
             NavigationLink(destination: ModifyCourseUsers(course: course)) {
                 Image(systemName: "person.2.badge.gearshape.fill")
             }
-        }
-        .onAppear {
-            Task {
-                await fetchData()
+            Button(action: {
+                withAnimation {
+                    showCreate.toggle()
+                }
+            }) {
+                Image(systemName: showCreate ? "xmark" :"plus")
             }
         }
+        .onReceive(refreshController.refreshSignal) { _ in
+                    Task {
+                        await fetchLessons()
+                    }
+                }
+        .task {
+            await fetchLessons()
+        }
+    }
+    
+    private func fetchLessons() async {
+        let lessons = try? await OAuthManager.shared.dbCommunicationServices?.getAllLessons(courseId: course.id)
+        if let lessons = lessons {
+            self.lessons = Set(lessons)
+        }
+        await fetchData()
     }
     
     private func fetchData() async {
@@ -133,14 +166,13 @@ struct LessonsView: View {
                             }
                         }
                     }
-                }.onAppear {
-                    Task {
-                        let declarations = try await OAuthManager.shared.dbCommunicationServices?.getAllLessonDeclarations(lessonId: lesson.id)
+                }.task {
+                        let declarations = try? await OAuthManager.shared.dbCommunicationServices?.getAllLessonDeclarations(lessonId: lesson.id)
                         if let declarations = declarations {
                             let selections = Set(declarations.filter { $0.declarationStatus == DeclarationStatus.waiting }.compactMap { $0.exercise })
                             selectionsDeclarationsTuple[UUID(uuidString: "\(lesson.id)")!] = (selections, declarations)
                         }
-                    }
+                    
                 }
             } else {
                 NavigationLink(destination: CreateLessonExercisesView(lesson: lesson, exercises: lesson.exercises)) {
@@ -163,6 +195,8 @@ struct LessonsView: View {
 struct CreateLessonExercisesView: View {
     @State var lesson: LessonDto
     @State var exercises: Set<ExerciseDto>?
+    
+    @EnvironmentObject var refreshController: RefreshController
     
     var body: some View {
         VStack {
@@ -209,8 +243,8 @@ struct CreateLessonExercisesView: View {
                 Task {
                     try await OAuthManager.shared.dbCommunicationServices?.postExercises(lesson: lesson)
                 }
+                refreshController.triggerRefresh()
             }
-            //TODO: - Send new lessonDto
         }
     }
     
@@ -221,7 +255,7 @@ struct CreateLessonExercisesView: View {
     
     private func addSubpoint(to exercise: ExerciseDto) {
         guard var set = exercises else { return }
-
+        
         let siblings = set.filter { $0.exerciseNumber == exercise.exerciseNumber }
         
         if exercise.subpoint == nil {
@@ -237,57 +271,75 @@ struct CreateLessonExercisesView: View {
         }
         
         let sortedSiblings = siblings.sorted { ($0.subpoint ?? "") < ($1.subpoint ?? "") }
-  
-        if let last = sortedSiblings.last, let ascii = last.subpoint?.unicodeScalars.first?.value, ascii < 122 {
-            let nextLetter = String(Character(UnicodeScalar(ascii + 1)!))
-            print(nextLetter)
-            let next = ExerciseDto(
-                classDate: exercise.classDate,
-                groupName: exercise.groupName,
-                exerciseNumber: exercise.exerciseNumber,
-                subpoint: nextLetter
-            )
-            set.insert(next)
-        }
+        
+        if let last = sortedSiblings.last, let lastSubpoint = last.subpoint {
+            var nextSubpoint: String?
 
+            if let ascii = lastSubpoint.unicodeScalars.first?.value, ascii < 122 {
+                nextSubpoint = String(Character(UnicodeScalar(ascii + 1)!))
+            } else if lastSubpoint.starts(with: "z") {
+                let apostropheCount = lastSubpoint.dropFirst().filter { $0 == "'" }.count
+                nextSubpoint = "z" + String(repeating: "'", count: apostropheCount + 1)
+            }
+
+            if let nextSubpoint {
+                let next = ExerciseDto(
+                    classDate: exercise.classDate,
+                    groupName: exercise.groupName,
+                    exerciseNumber: exercise.exerciseNumber,
+                    subpoint: nextSubpoint
+                )
+                set.insert(next)
+            }
+        }
+        
         exercises = set
-        }
-
+    }
+        
+    
     
     private func removeExercise(for exercise: ExerciseDto) {
-                guard var set = exercises else { return }
-                set.remove(exercise)
-
-                let siblings = set.filter { $0.exerciseNumber == exercise.exerciseNumber }
+        guard var set = exercises else { return }
         
-                // Last subpoints - converting back to exercise without subpoint
-                if siblings.count == 1, let second = siblings.first, second.subpoint != nil {
-                    set.remove(second)
-                    second.subpoint = nil
-                    set.insert(second)
-                }
-
-                exercises = set
+        if set.count == 1 {
+            exercises = nil
         }
+        
+        set.remove(exercise)
+        
+        let siblings = set.filter { $0.exerciseNumber == exercise.exerciseNumber }
+        
+        // Last subpoints - converting back to exercise without subpoint
+        if siblings.count == 1, let second = siblings.first, second.subpoint != nil {
+            set.remove(second)
+            second.subpoint = nil
+            set.insert(second)
+        }
+        
+        exercises = set
+    }
 }
 
 struct CreateLessonView: View {
-    @Environment(\.presentationMode) var presentationMode
-    
+    @EnvironmentObject var refreshController: RefreshController
     let course: CourseDto
-    @State var exercisesAmount: Int = 1
+    @Binding var showCreate: Bool
+    
+    @State var date: Date = Date()
     
     var body: some View {
         VStack {
-            Text("Exercises amount:")
-            Stepper("\(exercisesAmount)", value: $exercisesAmount, in: 1...30)
-            Button("Done") {
+            DatePicker("Lesson Date", selection: $date, displayedComponents: .date)
+            Button("Add") {
                 Task {
-                    try await OAuthManager.shared.dbCommunicationServices?.addLesson(courseId: course.id, exercisesAmount: Int32(exercisesAmount))
-                    presentationMode.wrappedValue.dismiss()
+                    //                    try await OAuthManager.shared.dbCommunicationServices?.addLesson(courseId: course.id, exercisesAmount: Int32(exercisesAmount))
+                    refreshController.triggerRefresh()
+                    showCreate = false
                 }
             }
+            .buttonStyle(.borderedProminent)
         }
         .padding()
+            
     }
 }

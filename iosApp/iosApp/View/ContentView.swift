@@ -21,16 +21,19 @@ struct ContentView: View {
 }
 
 struct BottomBarView: View {
+    @State var accentColor: Color = .accentColor
+    
     var body: some View {
         TabView {
             CourseView()
                 .tabItem {
                     Label("Courses", systemImage: "book")
                 }
-            UserManagementView()
+            UserManagementView(accentColor: $accentColor)
                 .tabItem {
                     Label("User", systemImage: "person.crop.circle")
                 }
         }
+        .tint(accentColor)
     }
 }

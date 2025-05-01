@@ -17,6 +17,7 @@ struct TasksAssignedView: View {
     @State var activity: Double = 0
     
     @State var sheetIsPresented: Bool = false
+    @EnvironmentObject var refreshController: RefreshController
     
     var body: some View {
         VStack {
@@ -45,12 +46,11 @@ struct TasksAssignedView: View {
                 if let email = OAuthManager.shared.email {
                     try await OAuthManager.shared.dbCommunicationServices?.addPoints(student: email, lesson: lesson, activityValue: activity)
                 }
+                refreshController.triggerRefresh()
             }
         }
-        .onAppear {
-            Task {
+        .task {
                 await fetchData()
-            }
         }
         .navigationTitle(title)
     }

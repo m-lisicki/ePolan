@@ -26,12 +26,14 @@ struct CreateCourseView: View {
     @State private var startDate: Date = Date()
     @State private var endDate: Date = Date().addingTimeInterval(60 * 60 * 24 * 7)
     @State private var calendarWeekdaySymbols = Calendar.autoupdatingCurrent.shortWeekdaySymbols
+    @State private var repeatInterval = 1
     
     var isFormValid: Bool {
         !name.isEmpty && !instructor.isEmpty && !selectedDays.isEmpty && startDate < endDate
     }
     
-    @Environment(\.presentationMode) var presentationMode
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var refreshController: RefreshController
     
     var body: some View {
         Form {
@@ -42,7 +44,7 @@ struct CreateCourseView: View {
             }
             
             // MARK: - Days Selection
-            Section(header: Text("Repeat On")) {
+            Section(header: Text("Repeat")) {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 50), spacing: 7)],alignment: .center, spacing: 12) {
                     ForEach(calendarWeekdaySymbols, id: \.self) { weekday in
                         let isSelected = selectedDays.contains(weekday)
@@ -64,6 +66,9 @@ struct CreateCourseView: View {
                                 }
                             }
                     }
+                }
+                Stepper(value: $repeatInterval, in: 1...3) {
+                    Text("Every ") + Text(repeatInterval == 1 ? "Week" : "\(repeatInterval) Weeks")
                 }
             }
             
@@ -93,6 +98,7 @@ struct CreateCourseView: View {
                                 Button("Delete", role: .destructive) {
                                     emails.removeAll { $0 == email }
                                 }
+                                .tint(.red)
                             }
                     }
                 }
@@ -101,34 +107,36 @@ struct CreateCourseView: View {
         .toolbar {
             // MARK: - Done Button
             Button("Done") {
-                                Task {
-                                    do {
-                                        let newCourse = try await OAuthManager.shared.dbCommunicationServices?.createCourse(
-                                            name: name,
-                                            instructor: instructor,
-                                            swiftShortSymbols: selectedDays,
-                                            students: Set(emails),
-                                            startDateISO: startDate.ISO8601Format(),
-                                            endDateISO: endDate.ISO8601Format()
-                                        )
-                
-                                        if let newCourse = newCourse {
-                                            if var currentCourses = courses {
-                                                currentCourses.append(newCourse)
-                                                courses = currentCourses
-                                            } else {
-                                                courses = [newCourse]
-                                            }
-                                        } else {
-                                            throw NSError(domain: "", code: 0, userInfo: nil)
-                                        }
-                
-                                        self.presentationMode.wrappedValue.dismiss()
-                                    } catch {
-                                        log.error("\(error)")
-                                        showingAlert = true
-                                    }
+                Task {
+                    do {
+                        guard let newCourse = try await OAuthManager.shared.dbCommunicationServices?.createCourse(
+                            name: name,
+                            instructor: instructor,
+                            swiftShortSymbols: selectedDays,
+                            students: Set(emails),
+                            startDateISO: startDate.ISO8601Format(),
+                            endDateISO: endDate.ISO8601Format()
+                        ) else {
+                            throw NSError(domain: "CourseCreationError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to create new course."])
+                        }
+                        
+                        try await withThrowingTaskGroup(of: Void.self) { group in
+                            for email in emails {
+                                group.addTask {
+                                    try await OAuthManager.shared.dbCommunicationServices?.addStudent(courseId: newCourse.id,email: EmailHelper.trimCharacters(email))
                                 }
+                            }
+                            try await group.waitForAll()
+                        }
+                        
+                        
+                        refreshController.triggerRefresh()
+                        dismiss()
+                    } catch {
+                        log.error("\(error)")
+                        showingAlert = true
+                    }
+                }
             }
             .disabled(!isFormValid)
             
