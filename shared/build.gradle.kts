@@ -1,10 +1,10 @@
-
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    
+    alias(libs.plugins.kotlinSerialization)
 }
 
 kotlin {
+
     listOf(
         iosX64(),
         iosArm64(),

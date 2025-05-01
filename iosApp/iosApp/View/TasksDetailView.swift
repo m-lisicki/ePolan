@@ -9,50 +9,83 @@
 import SwiftUI
 import Shared
 
-// TODO: - Fetch real ongoing declarations selection
 struct TasksDetailView: View {
-    @State private var isEditing = false
+    @State private var isEditing = true
     
-    @State var exercises: [ExerciseDto]
-    
-    let name: String
-    @State var selection: Set<UUID> = []
-    
-    var body: some View {
-        List(exercises, id: \.id, selection: $selection) { exercise in
-            HStack {
-                Text("\(exercise.exerciseNumber)\(exercise.subpoint ?? "").")
-            }
-            .tag(exercise.id)
-        }
-        .onAppear {
-            isEditing = true
-        }
-        .environment(\.editMode, .constant(isEditing ? .active : .inactive))
-        .onChange(of: selection.count) { _, _ in
-            postExerciseDeclaration()
-        }
-        .navigationTitle(name)
-    }
-    
-    private func postExerciseDeclaration() {
-        // TODO: - POST for updating declaration
-    }
-}
-
-// TODO: - Fetch which tasks are assigned
-struct TasksAssignedView: View {
     let title: String
-    let tasks: Array<ExerciseDto>
+    let lesson: LessonDto
+    
+    @State var exercises: Array<ExerciseDto>?
+    @State var declarations: Set<DeclarationDto>?
+    
+    @State var selection: Set<ExerciseDto>
+    
+    @State var savingError = false
     
     var body: some View {
-            List(tasks, id: \.id) { task in
-                HStack {
-                    Text("\(task.id)\(task.subpoint ?? "").")
-                    Spacer()
-                    //Text(task.assigned ? "Assigned 🎉" : "Not assigned")
+        VStack {
+            if let exercises = exercises {
+                List(exercises, id: \.self, selection: $selection) { exercise in
+                    HStack {
+                        Text("\(exercise.exerciseNumber)\(exercise.subpoint ?? "").")
+                    }
+                }
+                .onAppear {
+                    isEditing = true
+                }
+                .environment(\.editMode, .constant(isEditing ? .active : .inactive))
+            } else {
+                Text("No exercises")
+            }
+        }
+        .onChange(of: selection) { oldSelection, newSelection in
+            
+            let added = newSelection.subtracting(oldSelection)
+            let removed = oldSelection.subtracting(newSelection)
+
+            for exercise in added {
+                postExerciseDeclaration(exerciseId: exercise.id)
+            }
+
+            for exercise in removed {
+                let matchingDeclarations = declarations?.filter { $0.exercise == exercise && $0.declarationStatus == DeclarationStatus.waiting}
+                if let matchingDeclarations = matchingDeclarations {
+                    for declaration in matchingDeclarations {
+                        postExerciseUnDeclaration(declarationId: declaration.id)
+                    }
                 }
             }
-            .navigationTitle(title)
         }
+        .navigationTitle(title)
+        .toolbar {
+            if savingError {
+                Text("Save failed")
+            }
+        }
+    }
+        
+    private func postExerciseUnDeclaration(declarationId: KotlinUuid) {
+        Task {
+            let result = try await OAuthManager.shared.dbCommunicationServices?.postUnDeclaration(declarationId: declarationId)
+            if result == 200 {
+                savingError = false
+            } else {
+                savingError = true
+            }
+            declarations = try await OAuthManager.shared.dbCommunicationServices?.getAllLessonDeclarations(lessonId: lesson.id)
+        }
+    }
+    
+    
+    private func postExerciseDeclaration(exerciseId: KotlinUuid) {
+        Task {
+            let result = try await OAuthManager.shared.dbCommunicationServices?.postDeclaration(exerciseId: exerciseId)
+            if result == 200 {
+                savingError = false
+            } else {
+                savingError = true
+            }
+            declarations = try await OAuthManager.shared.dbCommunicationServices?.getAllLessonDeclarations(lessonId: lesson.id)
+        }
+    }
 }
