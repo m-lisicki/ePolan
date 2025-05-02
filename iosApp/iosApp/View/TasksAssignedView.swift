@@ -8,46 +8,78 @@
 
 import SwiftUI
 import Shared
+import Combine
 
 struct TasksAssignedView: View {
     let title: String
     let lesson: LessonDto
-    @State var exercises: Array<ExerciseDto>?
+    @State var exercises: Array<ExerciseDto>
     @State var declarations: Set<DeclarationDto>?
-    @State var activity: Double = 0
+    @State var activity: Double?
     
-    @State var sheetIsPresented: Bool = false
+    @State var activityTask: Task<Void, Never>?
+    @State var savingError = false
+    
     @EnvironmentObject var refreshController: RefreshController
     
     var body: some View {
         VStack {
-            if let exercises = exercises {
-                List(exercises, id: \.id) { exercise in
-                    HStack {
-                        Text("\(exercise.exerciseNumber)\(exercise.subpoint ?? "").")
-                        Spacer()
-                        Text(declarations?.contains(where: { $0.exercise == exercise && $0.declarationStatus == DeclarationStatus.approved }) ?? false ? "Assigned 🎉" : "Not assigned")
+            if let declarations = declarations {
+                if !exercises.isEmpty {
+                    List(exercises, id: \.id) { exercise in
+                        HStack {
+                            Text("\(exercise.exerciseNumber)\(exercise.subpoint ?? "").")
+                            Spacer()
+                            Text(declarations.contains(where: { $0.exercise == exercise && $0.declarationStatus == DeclarationStatus.approved }) ? "Assigned 🎉" : "Not assigned")
+                        }
                     }
-                }
-                .refreshable {
-                    Task {
+                    .refreshable {
                         await fetchData()
                     }
+                } else {
+                    Image(systemName: "pencil.and.list.clipboard")
+                        .symbolRenderingMode(.palette)
+                        .imageScale(.large)
+                    Text("No exercises")
                 }
-                Stepper("Points: \(String(format: "%.2f", activity))", value: $activity, in: 0...5, step: 0.5)
+            } else {
+                Image(systemName: "exclamationmark")
+                    .symbolRenderingMode(.multicolor)
+                    .imageScale(.large)
+                Text("Failed to fetch declarations")
+            }
+            if let activity = activity {
+                Stepper("Points: \(String(format: "%.2f", activity))", value: Binding<Double>(get:{self.activity ?? 0},set:{self.activity = $0}), in: 0...5, step: 0.5)
                     .padding()
             } else {
-                Text("No exercises")
+                Text("error: no activity data")
+                    .foregroundStyle(.red)
+                    .font(.caption)
+                    .padding()
             }
         }
-        //TODO: - Add throwing errors
-        .onDisappear {
-            Task {
+        .onChange(of: activity ?? 0) { oldValue, newValue in
+            activityTask?.cancel()
+            activityTask = Task {
+                try? await Task.sleep(for: .seconds(2))
+
+                if Task.isCancelled { return }
+
                 if let email = OAuthManager.shared.email {
-                    try await OAuthManager.shared.dbCommunicationServices?.addPoints(student: email, lesson: lesson, activityValue: activity)
+                    do {
+                        try await OAuthManager.shared.dbCommunicationServices?.addPoints(student: email, lesson: lesson, activityValue: newValue)
+                    } catch {
+                        savingError = true
+                    }
                 }
-                refreshController.triggerRefresh()
             }
+        }
+        .alert(isPresented: $savingError) {
+            Alert(
+                title: Text("Saving error"),
+                message: Text("Something went wrong. Try again later."),
+                dismissButton: .default(Text("OK"))
+            )
         }
         .task {
                 await fetchData()

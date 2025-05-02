@@ -10,7 +10,7 @@ import SwiftUI
 import AppAuth
 import Shared
 
-class OAuthManager: ObservableObject {
+final class OAuthManager: ObservableObject {
     static let shared = OAuthManager()
     private init() {}
     
@@ -44,34 +44,32 @@ class OAuthManager: ObservableObject {
         
         log.info("🔑 Initiating authorization with scopes: \(request.scope ?? "none")")
         
-        guard let presentingViewController = UIApplication.shared.windows.first?.rootViewController else {
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene, let rootVC = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController else {
             log.error("Unable to retrieve the root view controller.")
             return
         }
         
-        let externalAgent = OIDExternalUserAgentIOS(presenting: presentingViewController)
+        let externalAgent = OIDExternalUserAgentIOS(presenting: rootVC)
         
         // Perform the auth request
         self.currentAuthorizationFlow = OIDAuthState.authState(
             byPresenting: request,
             externalUserAgent: externalAgent!
         ) { [weak self] state, error in
-            DispatchQueue.main.async {
                 if let error = error {
                     log.error("Authorization error: \(error.localizedDescription)")
                 } else if let state = state {
-                    self?.authState = state
-                    log.info("Access token: \(state.lastTokenResponse?.accessToken ?? "nil")")
                     if let accessToken = state.lastTokenResponse?.accessToken {
                         self?.dbCommunicationServices = DBCommunicationServices(token: accessToken)
                     }
+                    self?.authState = state
                     Task {
-                        self?.email = try await OAuthManager.shared.dbCommunicationServices?.getUserEmail()
+                        self?.email = try? await OAuthManager.shared.dbCommunicationServices?.getUserEmail()
                     }
                 } else {
                     log.error("Unknown authorization error")
                 }
-            }
+            
         }
     }
     
@@ -97,28 +95,25 @@ class OAuthManager: ObservableObject {
             additionalParameters: nil
         )
         
-        guard let presentingViewController = UIApplication.shared.windows.first?.rootViewController else {
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene, let rootVC = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController else {
             log.error("Unable to retrieve the root view controller.")
             return
         }
         
-        let externalAgent = OIDExternalUserAgentIOS(presenting: presentingViewController)
+        let externalAgent = OIDExternalUserAgentIOS(presenting: rootVC)
         
         currentAuthorizationFlow = OIDAuthorizationService.present(
             endSessionRequest,
             externalUserAgent: externalAgent!
         ) { [weak self] response, error in
-            DispatchQueue.main.async {
-                self?.authState = nil
-                
                 if let error = error {
                     log.error("Logout error: \(error.localizedDescription)")
                 } else {
                     log.info("Logged out successfully")
+                    self?.authState = nil
                     self?.dbCommunicationServices = nil
-                    OAuthManager.shared.email = nil
+                    self?.email = nil
                 }
-            }
         }
     }
 }

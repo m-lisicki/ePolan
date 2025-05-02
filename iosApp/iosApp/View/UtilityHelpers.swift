@@ -40,9 +40,14 @@ extension Set<ExerciseDto> {
 import Combine
 
 class RefreshController: ObservableObject {
-    let refreshSignal = PassthroughSubject<Void, Never>()
+    let refreshSignalExercises = PassthroughSubject<Void, Never>()
+    let refreshSignalActivity = PassthroughSubject<Void, Never>()
     
-    func triggerRefresh() {
-        refreshSignal.send()
+    func triggerRefreshExercises() {
+        refreshSignalExercises.send()
+    }
+    
+    func triggerRefreshActivity() {
+        refreshSignalActivity.send()
     }
 }

@@ -53,7 +53,6 @@ class DBCommunicationServices(val token: String) {
             contentType(ContentType.Application.Json)
             setBody(payload)
         }
-        print(response)
 
         return response.body()
     }
@@ -91,9 +90,7 @@ class DBCommunicationServices(val token: String) {
         val response = ApiClient.client.get("${ApiClient.BASE_URL}/course/courses") {
             header(HttpHeaders.Authorization, "Bearer $token")
         }
-
-        print(response)
-
+        
         return response.body()
     }
 
@@ -102,7 +99,7 @@ class DBCommunicationServices(val token: String) {
         val response = ApiClient.client.get("${ApiClient.BASE_URL}/lesson/$lessonId/exercises") {
             header(HttpHeaders.Authorization, "Bearer $token")
         }
-        print(response)
+        
 
         return response.body()
     }
@@ -112,7 +109,7 @@ class DBCommunicationServices(val token: String) {
         val response = ApiClient.client.get("${ApiClient.BASE_URL}/lesson/$courseId/lessons") {
             header(HttpHeaders.Authorization, "Bearer $token")
         }
-        print(response)
+        
 
         return response.body()
     }

@@ -19,9 +19,18 @@ struct UserManagementView: View {
                     HStack {
                         Label("Email", systemImage: "envelope")
                         Spacer()
-                        Text(OAuthManager.shared.email ?? "User")
+                        Text(OAuthManager.shared.email ?? "?")
                             .foregroundColor(.secondary)
                     }
+                    Button(role: .destructive) {
+                            oauth.logout()
+                        } label: {
+                            HStack {
+                                Spacer()
+                                Text("Logout")
+                                Spacer()
+                            }
+                        }
                 }
                 
                 Section(header: Text("Appearance")) {
@@ -30,10 +39,6 @@ struct UserManagementView: View {
 
                 
             }
-            Button("Logout", role: .destructive) {
-                oauth.logout()
-            }
-            .buttonStyle(.borderedProminent)
             .navigationTitle("User Management")
             .navigationBarTitleDisplayMode(.inline)
         }

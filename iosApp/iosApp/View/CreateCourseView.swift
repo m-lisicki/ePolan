@@ -13,7 +13,6 @@ import Shared
     ContentView()
 }
 
-// TODO: - Better date picker view
 struct CreateCourseView: View {
     @Binding var courses: Array<CourseDto>?
     
@@ -45,11 +44,11 @@ struct CreateCourseView: View {
             
             // MARK: - Days Selection
             Section(header: Text("Repeat")) {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 50), spacing: 7)],alignment: .center, spacing: 12) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 50), spacing: 13)], spacing: 13) {
                     ForEach(calendarWeekdaySymbols, id: \.self) { weekday in
                         let isSelected = selectedDays.contains(weekday)
                         Text(weekday)
-                            .font(.subheadline).bold()
+                            .font(.subheadline)
                             .foregroundColor(.white)
                             .frame(minWidth: 50, minHeight: 33)
                             .background(
@@ -109,28 +108,31 @@ struct CreateCourseView: View {
             Button("Done") {
                 Task {
                     do {
-                        guard let newCourse = try await OAuthManager.shared.dbCommunicationServices?.createCourse(
+                        guard let services = OAuthManager.shared.dbCommunicationServices else {
+                            fatalError("No DB Communication Services")
+                        }
+                        
+                        let newCourse = try await services.createCourse(
                             name: name,
                             instructor: instructor,
                             swiftShortSymbols: selectedDays,
                             students: Set(emails),
                             startDateISO: startDate.ISO8601Format(),
                             endDateISO: endDate.ISO8601Format()
-                        ) else {
-                            throw NSError(domain: "CourseCreationError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to create new course."])
-                        }
+                        )
+                        
                         
                         try await withThrowingTaskGroup(of: Void.self) { group in
                             for email in emails {
                                 group.addTask {
-                                    try await OAuthManager.shared.dbCommunicationServices?.addStudent(courseId: newCourse.id,email: EmailHelper.trimCharacters(email))
+                                    try await services.addStudent(courseId: newCourse.id,email: EmailHelper.trimCharacters(email))
                                 }
                             }
+                            
                             try await group.waitForAll()
                         }
                         
-                        
-                        refreshController.triggerRefresh()
+                        courses = (courses ?? []) + [newCourse]
                         dismiss()
                     } catch {
                         log.error("\(error)")
