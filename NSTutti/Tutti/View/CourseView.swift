@@ -15,7 +15,6 @@ import Shared
 
 struct CourseView: View {
     @State var courses: Array<CourseDto>?
-    @EnvironmentObject var refreshController: RefreshController
 
     var body: some View {
         NavigationStack {

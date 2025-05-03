@@ -10,11 +10,12 @@ import SwiftUI
 import AppAuth
 import Shared
 
-final class OAuthManager: ObservableObject {
+@MainActor @Observable
+final class OAuthManager {
     static let shared = OAuthManager()
     private init() {}
     
-    @Published var authState: OIDAuthState?
+    var authState: OIDAuthState?
     private var currentAuthorizationFlow: OIDExternalUserAgentSession?
     
     let clientID = "ClassMatcher"

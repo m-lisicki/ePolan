@@ -13,7 +13,7 @@ struct TasksManagementView: View {
     @State var lesson: LessonDto
     @State var exercises: Set<ExerciseDto>
     
-    @EnvironmentObject var refreshController: RefreshController
+    @Environment(RefreshController.self) var refreshController
     @Environment(\.dismiss) private var dismiss
         
     var body: some View {
@@ -28,7 +28,7 @@ struct TasksManagementView: View {
                         
                         if siblings.count == 1 || sortedSiblings.last?.id == exercise.id {
                             HStack {
-                                let isOnlyBaseLast = siblings.count == 1 && exercise.subpoint == nil && exercise.exerciseNumber == (exercises.map { $0.exerciseNumber }.max() ?? -1)
+                                let isOnlyBaseLast = siblings.count == 1 && exercise.exerciseNumber == (exercises.map { $0.exerciseNumber }.max() ?? Int32.min)
                                 if siblings.count > 1 || isOnlyBaseLast {
                                     Button { removeExercise(for: exercise)} label: {
                                         Image(systemName: "minus.diamond.fill")

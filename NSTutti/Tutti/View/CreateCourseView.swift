@@ -9,9 +9,7 @@
 import SwiftUI
 import Shared
 
-#Preview {
-    ContentView()
-}
+import UserNotifications
 
 struct CreateCourseView: View {
     @Binding var courses: Array<CourseDto>?
@@ -32,7 +30,6 @@ struct CreateCourseView: View {
     }
     
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject var refreshController: RefreshController
     
     var body: some View {
         Form {
@@ -122,15 +119,18 @@ struct CreateCourseView: View {
                         )
                         
                         
-                        try await withThrowingTaskGroup(of: Void.self) { group in
+                        
+                        await withThrowingTaskGroup { group in
                             for email in emails {
                                 group.addTask {
                                     try await services.addStudent(courseId: newCourse.id,email: EmailHelper.trimCharacters(email))
                                 }
                             }
-                            
-                            try await group.waitForAll()
                         }
+                        
+                        
+                        //TODO: - Push notifications
+                        //NotificationCentre.scheduleCourseNotification(startDate: startDate, endDate: endDate, courseName: name, weekDay: selectedDays)
                         
                         courses = (courses ?? []) + [newCourse]
                         dismiss()

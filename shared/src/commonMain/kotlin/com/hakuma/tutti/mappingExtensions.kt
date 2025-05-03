@@ -1,7 +1,6 @@
-package com.polan.baklava
+package com.hakuma.tutti
 
 import kotlinx.datetime.DayOfWeek
-import kotlinx.datetime.Instant
 
 fun convertShortWeekdaySymbolsToLessonTimeSet(
     swiftShortSymbols: Set<String>): Set<LessonTime> {

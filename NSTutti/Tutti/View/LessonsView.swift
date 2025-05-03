@@ -16,24 +16,18 @@ struct LessonsView: View {
     @State var pointsArray: Array<PointDto>?
     
     @State var showCreate = false
-    @EnvironmentObject var refreshController: RefreshController
-    
+    @Environment(RefreshController.self) var refreshController
+        
     var groupedLessons: [String: [LessonDto]]? {
-        var groupedLessons = Dictionary<String, [LessonDto]>()
-        
-        guard let lessons = lessons else { return nil }
-        
-        let lessonsSorted = lessons.sorted { formattedDate(from : $0.getClassDateString()) > formattedDate(from : $1.getClassDateString()) }
-        
-        for lesson in lessonsSorted {
-            if groupedLessons[lesson.statusText] == nil {
-                groupedLessons[lesson.statusText] = []
+        let formatter = ISO8601DateFormatter()
+        return lessons?
+            .sorted {
+                    formatter.date(from: $0.getClassDateString()) ?? .distantPast >
+                    formatter.date(from: $1.getClassDateString()) ?? .distantPast
             }
-            
-            groupedLessons[lesson.statusText]?.append(lesson)
-        }
-        
-        return groupedLessons
+            .reduce(into: [:]) {
+                $0[$1.statusText, default: []].append($1)
+            }
     }
     
     private func lessonActivity(for lesson: LessonDto) -> Double? {
@@ -48,27 +42,39 @@ struct LessonsView: View {
         }
     }
     
+    static let statusOrder = ["Future", "Near", "Past"]
+    @State var isExpanded = [false, true, true]
+    
     var body: some View {
         VStack {
             if let groupedLessons = groupedLessons {
                 ZStack {
                     List {
-                        ForEach(groupedLessons.keys.sorted(), id: \.self) { status in
-                            Section(header: Text(status)) {
-                                ForEach(groupedLessons[status] ?? [], id: \.self) { lesson in
-                                    lessonView(for: lesson, activity: lessonActivity(for: lesson))
-                                        .swipeActions {
-                                            Button("Delete", role: .destructive) {
-                                                Task {
-                                                    try await OAuthManager.shared.dbCommunicationServices?.deleteLesson(lessonId: lesson.id)
-                                                    await fetchLessons()
+                        ForEach(Self.statusOrder.indices, id: \.self) { i in
+                            Section {
+                                DisclosureGroup(
+                                    isExpanded: $isExpanded[i],
+                                    content: {
+                                        ForEach(groupedLessons[Self.statusOrder[i]] ?? [], id: \.self) { lesson in
+                                            lessonView(for: lesson, activity: lessonActivity(for: lesson))
+                                                .swipeActions {
+                                                    Button("Delete", role: .destructive) {
+                                                        Task {
+                                                            try await OAuthManager.shared.dbCommunicationServices?.deleteLesson(lessonId: lesson.id)
+                                                            await fetchLessons()
+                                                        }
+                                                    }
+                                                    .tint(.red)
                                                 }
-                                            }
-                                            .tint(.red)
                                         }
-                                }
+                                    },
+                                    label: {
+                                        Text(Self.statusOrder[i])
+                                            .font(.headline)
+                                    })
                             }
                         }
+                        
                     }
                     .refreshable {
                         await fetchLessons()
@@ -81,16 +87,19 @@ struct LessonsView: View {
                         }
                     }
                 }
+                .overlay(alignment: .bottom) {
+                    if showCreate {
+                        CreateLessonView(course: course, lessons: $lessons, showCreate: $showCreate)
+                            .transition(.slide)
+                            .background(.thinMaterial)
+                    }
+                }
             } else {
                 VStack {
                     Image(systemName: "slowmo")
                         .symbolEffect(.variableColor.iterative.hideInactiveLayers.nonReversing, options: .repeat(.continuous))
                         .imageScale(.large)
                 }
-            }
-            if showCreate {
-                CreateLessonView(course: course, lessons: $lessons, showCreate: $showCreate)
-                    .transition(.slide)
             }
         }
         .toolbar {
@@ -110,10 +119,10 @@ struct LessonsView: View {
             }
         }
         .onReceive(refreshController.refreshSignalExercises) { _ in
-                    Task {
-                        await fetchLessons()
-                    }
-                }
+            Task {
+                await fetchLessons()
+            }
+        }
         .onReceive(refreshController.refreshSignalActivity) { _ in
             Task {
                 await fetchActivity()
@@ -122,9 +131,8 @@ struct LessonsView: View {
         .task {
             async let lessonsTask: () = fetchLessons()
             async let activityTask: () = fetchActivity()
-
-            await lessonsTask
-            await activityTask
+            
+            await lessonsTask; await activityTask
         }
     }
     
@@ -145,28 +153,30 @@ struct LessonsView: View {
             self.pointsArray = pointsArray.reversed()
         }
     }
-        
+    
     @ViewBuilder
     private func lessonView(for lesson: LessonDto, activity: Double?) -> some View {
         if let lessonExercises = lesson.exercises {
             if lesson.lessonStatus == .past {
                 NavigationLink(destination: TasksAssignedView(title: formattedDate(from: lesson.getClassDateString()), lesson: lesson, exercises: lessonExercises.sortedByNumber(), activity: activity)) {
-                    Text(formattedDate(from: lesson.getClassDateString()))
-                        .font(.headline)
-                    Spacer()
-                    if let activity = activity {
-                        Text("\(activity)")
+                    HStack {
+                        Text(formattedDate(from: lesson.getClassDateString()))
+                            .font(.headline)
+                        Spacer()
+                        if let activity = activity {
+                            Text(String(format: "%.2f", activity))
+                        }
                     }
                 }
             } else if lesson.lessonStatus == .near {
                 if !lessonExercises.isEmpty {
-                        NavigationLink(destination: TasksAssignView(title: formattedDate(from: lesson.getClassDateString()), lesson: lesson, exercises: lessonExercises.sortedByNumber())) {
-                            VStack(alignment: .leading) {
-                                Text(formattedDate(from: lesson.getClassDateString()))
-                                    .font(.headline)
-                            }
+                    NavigationLink(destination: TasksAssignView(title: formattedDate(from: lesson.getClassDateString()), lesson: lesson, exercises: lessonExercises.sortedByNumber())) {
+                        VStack(alignment: .leading) {
+                            Text(formattedDate(from: lesson.getClassDateString()))
+                                .font(.headline)
                         }
-                        
+                    }
+                    
                     
                 } else {
                     HStack {
@@ -193,7 +203,6 @@ struct LessonsView: View {
 }
 
 struct CreateLessonView: View {
-    @EnvironmentObject var refreshController: RefreshController
     let course: CourseDto
     @Binding var lessons: Set<LessonDto>?
     @Binding var showCreate: Bool
@@ -215,6 +224,6 @@ struct CreateLessonView: View {
             .buttonStyle(.borderedProminent)
         }
         .padding()
-            
+        
     }
 }

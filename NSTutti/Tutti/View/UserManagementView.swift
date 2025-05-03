@@ -9,7 +9,7 @@
 import SwiftUI
 
 struct UserManagementView: View {
-    @EnvironmentObject private var oauth: OAuthManager
+    @Environment(OAuthManager.self) private var oauth
     @Binding var accentColor: Color
     
     var body: some View {

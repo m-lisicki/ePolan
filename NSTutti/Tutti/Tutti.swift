@@ -4,15 +4,15 @@ import OSLog
 let log = Logger()
 
 @main
-struct iOSApp: App {
-    @StateObject private var oauth = OAuthManager.shared
-    @StateObject var refreshController = RefreshController()
+struct Tutti: App {
+    @State private var oauth = OAuthManager.shared
+    @State var refreshController = RefreshController()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environmentObject(oauth)
-                .environmentObject(refreshController)
+                .environment(oauth)
+                .environment(refreshController)
                 .onOpenURL { url in
                     if oauth.resumeExternalUserAgentFlow(with: url) {
                         log.info("Resumed flow from redirect URI")

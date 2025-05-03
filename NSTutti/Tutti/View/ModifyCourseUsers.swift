@@ -16,8 +16,6 @@ struct ModifyCourseUsers: View {
     @State var showingAlert = false
     @State var email: String = ""
     
-    @EnvironmentObject var refreshController: RefreshController
-
     var currentUser: String {
         OAuthManager.shared.email ?? ""
     }

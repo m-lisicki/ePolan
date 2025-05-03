@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalUuidApi::class)
 
-package com.polan.baklava
+package com.hakuma.tutti
 
 import io.ktor.client.*
 import io.ktor.client.call.body

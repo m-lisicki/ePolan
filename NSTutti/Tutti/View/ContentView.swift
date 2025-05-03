@@ -3,7 +3,7 @@ import Shared
 
 
 struct ContentView: View {
-    @EnvironmentObject var oauth: OAuthManager
+    @Environment(OAuthManager.self) var oauth: OAuthManager
     
     var body: some View {
         if oauth.authState == nil {

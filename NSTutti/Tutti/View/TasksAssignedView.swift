@@ -20,8 +20,6 @@ struct TasksAssignedView: View {
     @State var activityTask: Task<Void, Never>?
     @State var savingError = false
     
-    @EnvironmentObject var refreshController: RefreshController
-    
     var body: some View {
         VStack {
             if let declarations = declarations {

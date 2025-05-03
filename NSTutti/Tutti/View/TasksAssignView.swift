@@ -10,7 +10,7 @@ import SwiftUI
 import Shared
 
 struct TasksAssignView: View {
-    @State private var isEditing = true
+    @State private var isEditing: EditMode = .active
     
     let title: String
     let lesson: LessonDto
@@ -18,23 +18,22 @@ struct TasksAssignView: View {
     @State var exercises: Array<ExerciseDto>
     @State var declarations: Set<DeclarationDto>?
     
-    @State var selection: Set<ExerciseDto>?
-    @State var initialSelection: Set<ExerciseDto>?
+    @State var selection: Set<ExerciseDto> = []
+    @State var initialSelection: Set<ExerciseDto> = []
     
     @State var savingError = false
     
+    @Environment(\.dismiss) private var dismiss
+
     var body: some View {
         VStack {
             if declarations != nil {
-                List(exercises, id: \.self, selection: $selection) { exercise in
+                List(exercises, id: \.id, selection: $selection) { exercise in
                     HStack {
                         Text("\(exercise.exerciseNumber)\(exercise.subpoint ?? "").")
                     }
                 }
-                .onAppear {
-                    isEditing = true
-                }
-                .environment(\.editMode, .constant(isEditing ? .active : .inactive))
+                .environment(\.editMode, $isEditing)
             } else {
                 Image(systemName: "exclamationmark")
                     .symbolRenderingMode(.multicolor)
@@ -44,11 +43,11 @@ struct TasksAssignView: View {
         }
         .toolbar {
             Button("Save") {
-                let added = selection?.subtracting(initialSelection ?? []) ?? []
-                let removed = initialSelection?.subtracting(selection ?? []) ?? []
+                let added = selection.subtracting(initialSelection)
+                let removed = initialSelection.subtracting(selection)
                 
                 Task {
-                    await withTaskGroup(of: Void.self) { group in
+                    await withTaskGroup { group in
                         for exercise in added {
                             group.addTask {
                                 await postExerciseDeclaration(exerciseId: exercise.id)
@@ -56,8 +55,7 @@ struct TasksAssignView: View {
                         }
                
                         for exercise in removed {
-                            let matchingDeclarations = declarations?.filter { $0.exercise == exercise && $0.declarationStatus == DeclarationStatus.waiting}
-                            if let matchingDeclarations = matchingDeclarations {
+                            if let matchingDeclarations = declarations?.filter({ $0.exercise == exercise && $0.declarationStatus == DeclarationStatus.waiting}) {
                                 for declaration in matchingDeclarations {
                                     group.addTask {
                                         await postExerciseUnDeclaration(declarationId: declaration.id)
@@ -79,11 +77,12 @@ struct TasksAssignView: View {
                 }
                 
                 declarations = try await service.getAllLessonDeclarations(lessonId: lesson.id)
-                selection = Set(declarations!.filter { $0.declarationStatus == DeclarationStatus.waiting }.compactMap { $0.exercise })
+                selection = Set(declarations!.filter { $0.declarationStatus == DeclarationStatus.waiting }.compactMap(\.exercise))
                 
                 initialSelection = selection
             } catch {
                 log.error("Database communication service is unavailable")
+                dismiss()
             }
         }
         .alert(isPresented: $savingError) {
@@ -102,6 +101,7 @@ struct TasksAssignView: View {
             savingError = false
         } else {
             savingError = true
+            return
         }
         declarations = try? await OAuthManager.shared.dbCommunicationServices?.getAllLessonDeclarations(lessonId: lesson.id)
     }
@@ -113,6 +113,7 @@ struct TasksAssignView: View {
             savingError = false
         } else {
             savingError = true
+            return
         }
         declarations = try? await OAuthManager.shared.dbCommunicationServices?.getAllLessonDeclarations(lessonId: lesson.id)
     }
