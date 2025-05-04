@@ -15,7 +15,7 @@ struct TasksAssignedView: View {
     let lesson: LessonDto
     @State var exercises: Array<ExerciseDto>
     @State var declarations: Set<DeclarationDto>?
-    @State var activity: Double?
+    @State var activity: Double
     
     @State var activityTask: Task<Void, Never>?
     @State var savingError = false
@@ -46,17 +46,10 @@ struct TasksAssignedView: View {
                     .imageScale(.large)
                 Text("Failed to fetch declarations")
             }
-            if let activity = activity {
-                Stepper("Points: \(String(format: "%.2f", activity))", value: Binding<Double>(get:{self.activity ?? 0},set:{self.activity = $0}), in: 0...5, step: 0.5)
-                    .padding()
-            } else {
-                Text("error: no activity data")
-                    .foregroundStyle(.red)
-                    .font(.caption)
-                    .padding()
-            }
+            Stepper("Points: \(String(format: "%.2f", activity))", value: Binding<Double>(get:{self.activity},set:{self.activity = $0}), in: 0...5, step: 0.5)
+                .padding()
         }
-        .onChange(of: activity ?? 0) { oldValue, newValue in
+        .onChange(of: activity) { oldValue, newValue in
             activityTask?.cancel()
             activityTask = Task {
                 try? await Task.sleep(for: .seconds(2))

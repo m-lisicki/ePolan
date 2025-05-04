@@ -1,4 +1,4 @@
-package com.hakuma.tutti
+package com.baklava.polan
 
 import kotlinx.datetime.DayOfWeek
 

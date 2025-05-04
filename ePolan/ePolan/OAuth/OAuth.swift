@@ -117,4 +117,8 @@ final class OAuthManager {
                 }
         }
     }
+    
+    func isAuthorised(user: String) -> Bool {
+       user == self.email ?? ""
+    }
 }

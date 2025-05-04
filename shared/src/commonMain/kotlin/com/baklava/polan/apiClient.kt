@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalUuidApi::class)
 
-package com.hakuma.tutti
+package com.baklava.polan
 
 import io.ktor.client.*
 import io.ktor.client.call.body
@@ -169,6 +169,7 @@ class DBCommunicationServices(val token: String) {
             lesson = lesson,
             activityValue = activityValue
         )
+
         val response = ApiClient.client.post("${ApiClient.BASE_URL}/points") {
             header(HttpHeaders.Authorization, "Bearer $token")
             contentType(ContentType.Application.Json)
@@ -235,5 +236,13 @@ class DBCommunicationServices(val token: String) {
         }
 
         return response.body()
+    }
+
+    @Throws(Throwable::class)
+    suspend fun joinCourse(invitationCode: String) : Int {
+        val response = ApiClient.client.post("${ApiClient.BASE_URL}/course/$invitationCode") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+    }
+        return response.status.value
     }
 }

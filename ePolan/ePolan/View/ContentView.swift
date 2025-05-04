@@ -6,10 +6,12 @@ struct ContentView: View {
     @Environment(OAuthManager.self) var oauth: OAuthManager
     
     var body: some View {
-        if oauth.authState == nil {
-            SignInView()
-        } else {
-            BottomBarView()
+        VStack {
+            if oauth.authState == nil {
+                SignInView()
+            } else {
+                BottomBarView()
+            }
         }
     }
 }

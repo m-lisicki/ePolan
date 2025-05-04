@@ -36,7 +36,6 @@ struct CreateCourseView: View {
             // MARK: - Course Details
             Section(header: Text("Course Details")) {
                 TextField("Course Name", text: $name)
-                TextField("Instructor", text: $instructor)
             }
             
             // MARK: - Days Selection
@@ -75,9 +74,10 @@ struct CreateCourseView: View {
             }
             
             // MARK: - Invite Students
-            Section(header: Text("Invite Students")) {
+            Section(header: Text("Invite")) {
+                TextField("Enter instructor email", text: $instructor)
                 HStack {
-                    TextField("Enter email", text: $emailInput)
+                    TextField("Enter student email", text: $emailInput)
                         .keyboardType(.emailAddress)
                         .autocapitalization(.none)
                     

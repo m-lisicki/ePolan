@@ -28,7 +28,7 @@ struct TasksAssignView: View {
     var body: some View {
         VStack {
             if declarations != nil {
-                List(exercises, id: \.id, selection: $selection) { exercise in
+                List(exercises, id: \.self, selection: $selection) { exercise in
                     HStack {
                         Text("\(exercise.exerciseNumber)\(exercise.subpoint ?? "").")
                     }

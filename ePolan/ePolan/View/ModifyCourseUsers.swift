@@ -23,11 +23,13 @@ struct ModifyCourseUsers: View {
     
     var body: some View {
         VStack {
+            Text(course.courseCode)
+                .textSelection(.enabled)
             List(users, id: \.self) { user in
                 Text(user)
                     .bold(user == currentUser)
                     .swipeActions {
-                        if (user != currentUser) {
+                        if (user != currentUser) && OAuthManager.shared.isAuthorised(user: course.creator) {
                             Button("Delete", role: .destructive) {
                                 Task {
                                     await removeUser(email: user)
@@ -39,20 +41,22 @@ struct ModifyCourseUsers: View {
             }
             .listStyle(.plain)
             .padding()
-            HStack {
-                TextField("Email", text: $email)
-                    .textFieldStyle(.roundedBorder)
-                Button("Add") {
-                    Task {
-                        await addUser(email: EmailHelper.trimCharacters(email))
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!EmailHelper.isEmailValid(email) || users.contains(EmailHelper.trimCharacters(email)))
-            }
-            .padding()
+//            if OAuthManager.shared.isAuthorised(user: course.creator) {
+//                HStack {
+//                    TextField("Email", text: $email)
+//                        .textFieldStyle(.roundedBorder)
+//                    Button("Add") {
+//                        Task {
+//                            await addUser(email: EmailHelper.trimCharacters(email))
+//                        }
+//                    }
+//                    .buttonStyle(.borderedProminent)
+//                    .disabled(!EmailHelper.isEmailValid(email) || users.contains(EmailHelper.trimCharacters(email)))
+//                }
+//                .padding()
+//            }
         }
-        .navigationTitle("Modify course users")
+        .navigationTitle("Course users")
         .navigationBarTitleDisplayMode(.inline)
         .task {
                 let userSet = try? await OAuthManager.shared.dbCommunicationServices?.getAllStudents(courseId: course.id)
@@ -70,16 +74,16 @@ struct ModifyCourseUsers: View {
         }
     }
     
-    func addUser(email: String) async {
-            let status = try? await OAuthManager.shared.dbCommunicationServices?.addStudent(courseId: course.id, email: email)
-            if status != 200 {
-                showingAlert = true
-                return
-            }
-            self.users.append(email)
-            self.email = ""
-        
-    }
+//    func addUser(email: String) async {
+//            let status = try? await OAuthManager.shared.dbCommunicationServices?.addStudent(courseId: course.id, email: email)
+//            if status != 200 {
+//                showingAlert = true
+//                return
+//            }
+//            self.users.append(email)
+//            self.email = ""
+//        
+//    }
     
     func removeUser(email: String) async {
             let status = try? await OAuthManager.shared.dbCommunicationServices?.removeStudent(courseId: course.id, email: email)

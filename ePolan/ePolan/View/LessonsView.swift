@@ -30,8 +30,8 @@ struct LessonsView: View {
             }
     }
     
-    private func lessonActivity(for lesson: LessonDto) -> Double? {
-        pointsArray?.first{ $0.lesson == lesson }?.activityValue
+    private func lessonActivity(for lesson: LessonDto) -> Double {
+        pointsArray?.first{ $0.lesson == lesson }?.activityValue ?? 0
     }
     
     func formattedDate(from isoString: String) -> String {
@@ -58,13 +58,15 @@ struct LessonsView: View {
                                         ForEach(groupedLessons[Self.statusOrder[i]] ?? [], id: \.self) { lesson in
                                             lessonView(for: lesson, activity: lessonActivity(for: lesson))
                                                 .swipeActions {
-                                                    Button("Delete", role: .destructive) {
-                                                        Task {
-                                                            try await OAuthManager.shared.dbCommunicationServices?.deleteLesson(lessonId: lesson.id)
-                                                            await fetchLessons()
+                                                    if OAuthManager.shared.isAuthorised(user: course.creator) {
+                                                        Button("Delete", role: .destructive) {
+                                                            Task {
+                                                                try await OAuthManager.shared.dbCommunicationServices?.deleteLesson(lessonId: lesson.id)
+                                                                await fetchLessons()
+                                                            }
                                                         }
+                                                        .tint(.red)
                                                     }
-                                                    .tint(.red)
                                                 }
                                         }
                                     },
@@ -102,20 +104,29 @@ struct LessonsView: View {
                 }
             }
         }
+        .task {
+            async let lessonsTask: () = fetchLessons()
+            async let activityTask: () = fetchActivity()
+            
+            await lessonsTask
+            await activityTask
+        }
         .toolbar {
             if let points = points {
                 Text("Points: \(points)")
                     .font(.caption)
             }
             NavigationLink(destination: ModifyCourseUsers(course: course)) {
-                Image(systemName: "person.2.badge.gearshape.fill").symbolRenderingMode(.palette)
+                Image(systemName: OAuthManager.shared.isAuthorised(user: course.creator) ? "person.2.badge.gearshape.fill" : "person.2.fill").symbolRenderingMode(.palette)
             }
-            Button(action: {
-                withAnimation {
-                    showCreate.toggle()
+            if OAuthManager.shared.isAuthorised(user: course.creator) {
+                Button(action: {
+                    withAnimation {
+                        showCreate.toggle()
+                    }
+                }) {
+                    Image(systemName: showCreate ? "xmark" :"plus").contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer), options: .nonRepeating))
                 }
-            }) {
-                Image(systemName: showCreate ? "xmark" :"plus").contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer), options: .nonRepeating))
             }
         }
         .onReceive(refreshController.refreshSignalExercises) { _ in
@@ -127,12 +138,6 @@ struct LessonsView: View {
             Task {
                 await fetchActivity()
             }
-        }
-        .task {
-            async let lessonsTask: () = fetchLessons()
-            async let activityTask: () = fetchActivity()
-            
-            await lessonsTask; await activityTask
         }
     }
     
@@ -155,7 +160,7 @@ struct LessonsView: View {
     }
     
     @ViewBuilder
-    private func lessonView(for lesson: LessonDto, activity: Double?) -> some View {
+    private func lessonView(for lesson: LessonDto, activity: Double) -> some View {
         if let lessonExercises = lesson.exercises {
             if lesson.lessonStatus == .past {
                 NavigationLink(destination: TasksAssignedView(title: formattedDate(from: lesson.getClassDateString()), lesson: lesson, exercises: lessonExercises.sortedByNumber(), activity: activity)) {
@@ -163,21 +168,18 @@ struct LessonsView: View {
                         Text(formattedDate(from: lesson.getClassDateString()))
                             .font(.headline)
                         Spacer()
-                        if let activity = activity {
-                            Text(String(format: "%.2f", activity))
-                        }
+                        Text(String(format: "%.2f", activity))
                     }
                 }
             } else if lesson.lessonStatus == .near {
                 if !lessonExercises.isEmpty {
+                    //TODO: - EDGE CASE WHEN ASSIGNED BUT NOT so past :>
                     NavigationLink(destination: TasksAssignView(title: formattedDate(from: lesson.getClassDateString()), lesson: lesson, exercises: lessonExercises.sortedByNumber())) {
                         VStack(alignment: .leading) {
                             Text(formattedDate(from: lesson.getClassDateString()))
                                 .font(.headline)
                         }
                     }
-                    
-                    
                 } else {
                     HStack {
                         Text(formattedDate(from: lesson.getClassDateString()))
@@ -187,7 +189,12 @@ struct LessonsView: View {
                     }
                 }
             } else {
-                NavigationLink(destination: TasksManagementView(lesson: lesson, exercises: lessonExercises)) {
+                if OAuthManager.shared.isAuthorised(user: course.creator) {
+                    NavigationLink(destination: TasksManagementView(lesson: lesson, exercises: lessonExercises)) {
+                        Text(formattedDate(from: lesson.getClassDateString()))
+                            .font(.headline)
+                    }
+                } else {
                     Text(formattedDate(from: lesson.getClassDateString()))
                         .font(.headline)
                 }

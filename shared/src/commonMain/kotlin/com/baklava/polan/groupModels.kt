@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalUuidApi::class)
 
-package com.hakuma.tutti
+package com.baklava.polan
 
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.Instant
@@ -31,7 +31,8 @@ data class CourseDto(
     val startDate: Instant,
     val endDate: Instant,
     var frequency: Int,
-    var isArchived: Boolean
+    var isArchived: Boolean,
+    var courseCode: String
 )
 
 // Dane pojedynczej sesji (lekcji)

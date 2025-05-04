@@ -1,4 +1,4 @@
-rootProject.name = "Tutti"
+rootProject.name = "ePolan"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {

@@ -4,7 +4,7 @@ import OSLog
 let log = Logger()
 
 @main
-struct Tutti: App {
+struct EPolan: App {
     @State private var oauth = OAuthManager.shared
     @State var refreshController = RefreshController()
 

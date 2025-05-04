@@ -15,6 +15,7 @@ import Shared
 
 struct CourseView: View {
     @State var courses: Array<CourseDto>?
+    @State var showAddCode = false
 
     var body: some View {
         NavigationStack {
@@ -59,6 +60,13 @@ struct CourseView: View {
                 }
             }
             .navigationTitle("Courses")
+            .overlay(alignment: .bottom) {
+                if showAddCode {
+                    JoinCourseView(showAddCode: $showAddCode)
+                        .transition(.slide)
+                        .background(.thinMaterial)
+                }
+            }
             .toolbar {
                 if let archivedCourses = courses?.filter(\.isArchived), !archivedCourses.isEmpty {
                     NavigationLink(destination: ArchivedCoursesView(archivedCourses: archivedCourses)) {
@@ -68,10 +76,24 @@ struct CourseView: View {
                 NavigationLink(destination: CreateCourseView(courses: $courses)) {
                     Image(systemName: "plus")
                 }
+                Button(action: {
+                    withAnimation {
+                        showAddCode.toggle()
+                    }
+                }) {
+                    Image(systemName: showAddCode ? "xmark" : "person.crop.badge.magnifyingglass.fill").contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer), options: .nonRepeating))
+                }
             }
         }
         .task {
             await fetchData()
+        }
+        .onChange(of: showAddCode) { _, newValue in
+            if !newValue {
+                Task {
+                    await fetchData()
+                }
+            }
         }
     }
     
@@ -83,6 +105,24 @@ struct CourseView: View {
     }
 }
 
+struct JoinCourseView: View {
+    @State var invitationCode: String = ""
+    @Binding var showAddCode: Bool
+    
+    var body: some View {
+        VStack {
+            TextField("Enter invitation code", text: $invitationCode)
+            Button("Join") {
+                Task {
+                    try await OAuthManager.shared.dbCommunicationServices?.joinCourse(invitationCode: invitationCode)
+                    showAddCode = false
+                }
+            }
+        }
+        .padding()
+    }
+}
+
 struct ArchivedCoursesView: View {
     let archivedCourses: [CourseDto]
     
@@ -90,6 +130,5 @@ struct ArchivedCoursesView: View {
         List(archivedCourses, id: \.id) { course in
             Text(course.name)
         }
-        .padding()
     }
 }
