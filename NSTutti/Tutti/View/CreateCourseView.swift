@@ -9,11 +9,8 @@
 import SwiftUI
 import Shared
 
-#Preview {
-    ContentView()
-}
+import UserNotifications
 
-// TODO: - Better date picker view
 struct CreateCourseView: View {
     @Binding var courses: Array<CourseDto>?
     
@@ -26,12 +23,13 @@ struct CreateCourseView: View {
     @State private var startDate: Date = Date()
     @State private var endDate: Date = Date().addingTimeInterval(60 * 60 * 24 * 7)
     @State private var calendarWeekdaySymbols = Calendar.autoupdatingCurrent.shortWeekdaySymbols
+    @State private var repeatInterval = 1
     
     var isFormValid: Bool {
         !name.isEmpty && !instructor.isEmpty && !selectedDays.isEmpty && startDate < endDate
     }
     
-    @Environment(\.presentationMode) var presentationMode
+    @Environment(\.dismiss) private var dismiss
     
     var body: some View {
         Form {
@@ -42,12 +40,12 @@ struct CreateCourseView: View {
             }
             
             // MARK: - Days Selection
-            Section(header: Text("Repeat On")) {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 50), spacing: 7)],alignment: .center, spacing: 12) {
+            Section(header: Text("Repeat")) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 50), spacing: 13)], spacing: 13) {
                     ForEach(calendarWeekdaySymbols, id: \.self) { weekday in
                         let isSelected = selectedDays.contains(weekday)
                         Text(weekday)
-                            .font(.subheadline).bold()
+                            .font(.subheadline)
                             .foregroundColor(.white)
                             .frame(minWidth: 50, minHeight: 33)
                             .background(
@@ -64,6 +62,9 @@ struct CreateCourseView: View {
                                 }
                             }
                     }
+                }
+                Stepper(value: $repeatInterval, in: 1...3) {
+                    Text("Every ") + Text(repeatInterval == 1 ? "Week" : "\(repeatInterval) Weeks")
                 }
             }
             
@@ -93,6 +94,7 @@ struct CreateCourseView: View {
                                 Button("Delete", role: .destructive) {
                                     emails.removeAll { $0 == email }
                                 }
+                                .tint(.red)
                             }
                     }
                 }
@@ -101,34 +103,42 @@ struct CreateCourseView: View {
         .toolbar {
             // MARK: - Done Button
             Button("Done") {
-                                Task {
-                                    do {
-                                        let newCourse = try await OAuthManager.shared.dbCommunicationServices?.createCourse(
-                                            name: name,
-                                            instructor: instructor,
-                                            swiftShortSymbols: selectedDays,
-                                            students: Set(emails),
-                                            startDateISO: startDate.ISO8601Format(),
-                                            endDateISO: endDate.ISO8601Format()
-                                        )
-                
-                                        if let newCourse = newCourse {
-                                            if var currentCourses = courses {
-                                                currentCourses.append(newCourse)
-                                                courses = currentCourses
-                                            } else {
-                                                courses = [newCourse]
-                                            }
-                                        } else {
-                                            throw NSError(domain: "", code: 0, userInfo: nil)
-                                        }
-                
-                                        self.presentationMode.wrappedValue.dismiss()
-                                    } catch {
-                                        log.error("\(error)")
-                                        showingAlert = true
-                                    }
+                Task {
+                    do {
+                        guard let services = OAuthManager.shared.dbCommunicationServices else {
+                            fatalError("No DB Communication Services")
+                        }
+                        
+                        let newCourse = try await services.createCourse(
+                            name: name,
+                            instructor: instructor,
+                            swiftShortSymbols: selectedDays,
+                            students: Set(emails),
+                            startDateISO: startDate.ISO8601Format(),
+                            endDateISO: endDate.ISO8601Format()
+                        )
+                        
+                        
+                        
+                        await withThrowingTaskGroup { group in
+                            for email in emails {
+                                group.addTask {
+                                    try await services.addStudent(courseId: newCourse.id,email: EmailHelper.trimCharacters(email))
                                 }
+                            }
+                        }
+                        
+                        
+                        //TODO: - Push notifications
+                        //NotificationCentre.scheduleCourseNotification(startDate: startDate, endDate: endDate, courseName: name, weekDay: selectedDays)
+                        
+                        courses = (courses ?? []) + [newCourse]
+                        dismiss()
+                    } catch {
+                        log.error("\(error)")
+                        showingAlert = true
+                    }
+                }
             }
             .disabled(!isFormValid)
             

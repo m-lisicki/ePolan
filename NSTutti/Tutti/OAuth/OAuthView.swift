@@ -11,7 +11,7 @@ import SwiftUI
 
 struct SignInView: View {
     @State private var showLogin = false
-    @EnvironmentObject private var oauth: OAuthManager
+    @Environment(OAuthManager.self) private var oauth: OAuthManager
     
     var body: some View {
         VStack(spacing: 20) {

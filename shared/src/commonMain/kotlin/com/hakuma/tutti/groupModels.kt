@@ -1,13 +1,12 @@
 @file:OptIn(ExperimentalUuidApi::class)
 
-package com.polan.baklava
+package com.hakuma.tutti
 
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlin.toString
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 

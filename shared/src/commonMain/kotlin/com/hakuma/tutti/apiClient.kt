@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalUuidApi::class)
 
-package com.polan.baklava
+package com.hakuma.tutti
 
 import io.ktor.client.*
 import io.ktor.client.call.body
@@ -53,7 +53,6 @@ class DBCommunicationServices(val token: String) {
             contentType(ContentType.Application.Json)
             setBody(payload)
         }
-        print(response)
 
         return response.body()
     }
@@ -91,9 +90,7 @@ class DBCommunicationServices(val token: String) {
         val response = ApiClient.client.get("${ApiClient.BASE_URL}/course/courses") {
             header(HttpHeaders.Authorization, "Bearer $token")
         }
-
-        print(response)
-
+        
         return response.body()
     }
 
@@ -102,7 +99,7 @@ class DBCommunicationServices(val token: String) {
         val response = ApiClient.client.get("${ApiClient.BASE_URL}/lesson/$lessonId/exercises") {
             header(HttpHeaders.Authorization, "Bearer $token")
         }
-        print(response)
+        
 
         return response.body()
     }
@@ -112,7 +109,7 @@ class DBCommunicationServices(val token: String) {
         val response = ApiClient.client.get("${ApiClient.BASE_URL}/lesson/$courseId/lessons") {
             header(HttpHeaders.Authorization, "Bearer $token")
         }
-        print(response)
+        
 
         return response.body()
     }
@@ -215,7 +212,7 @@ class DBCommunicationServices(val token: String) {
 
     @Throws(Throwable::class)
     suspend fun postExercises(lesson: LessonDto) : Int {
-        val response = ApiClient.client.post("${ApiClient.BASE_URL}/lesson/exercises") {
+        val response = ApiClient.client.put("${ApiClient.BASE_URL}/lesson/exercises") {
             header(HttpHeaders.Authorization, "Bearer $token")
             contentType(ContentType.Application.Json)
             setBody(lesson)
