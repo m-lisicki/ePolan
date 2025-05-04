@@ -29,7 +29,9 @@ data class CourseDto(
     val lessonTimes: Set<LessonTime>,
     val lessons: Set<LessonDto>?,
     val startDate: Instant,
-    val endDate: Instant
+    val endDate: Instant,
+    var frequency: Int,
+    var isArchived: Boolean
 )
 
 // Dane pojedynczej sesji (lekcji)
@@ -108,7 +110,8 @@ data class NewCourseDto(
     var lessonTimes: Set<LessonTime>,
     var students: Set<String>,
     var startDate: Instant,
-    var endDate: Instant
+    var endDate: Instant,
+    var frequency: Int
 )
 
 // Dane użytkownika

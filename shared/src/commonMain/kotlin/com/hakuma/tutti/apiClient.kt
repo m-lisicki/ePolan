@@ -9,6 +9,7 @@ import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -37,16 +38,16 @@ object ApiClient {
 class DBCommunicationServices(val token: String) {
 
     @Throws(Throwable::class)
-    // Create a new course on the server
     suspend fun createCourse(
         name: String,
         instructor: String,
         swiftShortSymbols: Set<String>,
         students: Set<String>,
         startDateISO: String,
-        endDateISO: String
+        endDateISO: String,
+        frequency: Int
     ): CourseDto {
-        val payload = NewCourseDto(Uuid.random(), name, instructor, convertShortWeekdaySymbolsToLessonTimeSet(swiftShortSymbols), students, Instant.parse(startDateISO), Instant.parse(endDateISO))
+        val payload = NewCourseDto(Uuid.random(), name, instructor, convertShortWeekdaySymbolsToLessonTimeSet(swiftShortSymbols), students, Instant.parse(startDateISO), Instant.parse(endDateISO), frequency)
         
         val response = ApiClient.client.post("${ApiClient.BASE_URL}/course/create") {
             header(HttpHeaders.Authorization, "Bearer $token")
@@ -85,7 +86,6 @@ class DBCommunicationServices(val token: String) {
     }
 
     @Throws(Throwable::class)
-    // Get all courses from the server
     suspend fun getAllCourses(): Set<CourseDto> {
         val response = ApiClient.client.get("${ApiClient.BASE_URL}/course/courses") {
             header(HttpHeaders.Authorization, "Bearer $token")
@@ -183,7 +183,6 @@ class DBCommunicationServices(val token: String) {
         val userInfo: UserInfoDto = ApiClient.client
           .get("http://localhost:8280/realms/Users/protocol/openid-connect/userinfo") {
             header(HttpHeaders.Authorization, "Bearer $token")
-            contentType(ContentType.Application.Json)
           }
           .body()
         return userInfo.email
@@ -204,7 +203,6 @@ class DBCommunicationServices(val token: String) {
     suspend fun deleteLesson(lessonId: Uuid) : Int {
         val response = ApiClient.client.delete("${ApiClient.BASE_URL}/lesson/$lessonId") {
             header(HttpHeaders.Authorization, "Bearer $token")
-            contentType(ContentType.Application.Json)
         }
 
         return response.status.value
@@ -219,5 +217,23 @@ class DBCommunicationServices(val token: String) {
         }
 
         return response.status.value
+    }
+
+    @Throws(Throwable::class)
+    suspend fun archiveCourse(courseId: Uuid) : Int {
+        val response = ApiClient.client.delete("${ApiClient.BASE_URL}/course/$courseId") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }
+
+        return response.status.value
+    }
+
+    @Throws(Throwable::class)
+    suspend fun manualAddLesson(courseId: Uuid, date: String) : LessonDto {
+        val response = ApiClient.client.post("${ApiClient.BASE_URL}/lesson/$courseId/${Instant.parse(date)}/addLesson") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }
+
+        return response.body()
     }
 }

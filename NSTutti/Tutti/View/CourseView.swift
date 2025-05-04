@@ -22,15 +22,26 @@ struct CourseView: View {
                 if let courses = courses {
                     ZStack {
                         List(courses, id: \.id) { course in
-                            NavigationLink(destination: LessonsView(course: course)) {
+                            if !course.isArchived {
+                                NavigationLink(destination: LessonsView(course: course)) {
                                     Text(course.name)
                                         .font(.headline)
                                 }
+                                .swipeActions {
+                                    Button("Archive") {
+                                        Task {
+                                            try await OAuthManager.shared.dbCommunicationServices?.archiveCourse(courseId: course.id)
+                                            await fetchData()
+                                        }
+                                    }
+                                }
+                            }
+                            
                         }
                         .refreshable {
                             await fetchData()
                         }
-                        if courses == [] {
+                        if courses.filter({ $0.isArchived == false }) == []{
                             VStack {
                                 Image(systemName: "compass.drawing")
                                     .imageScale(.large)
@@ -49,6 +60,11 @@ struct CourseView: View {
             }
             .navigationTitle("Courses")
             .toolbar {
+                if let archivedCourses = courses?.filter(\.isArchived), !archivedCourses.isEmpty {
+                    NavigationLink(destination: ArchivedCoursesView(archivedCourses: archivedCourses)) {
+                        Image(systemName: "archivebox")
+                    }
+                }
                 NavigationLink(destination: CreateCourseView(courses: $courses)) {
                     Image(systemName: "plus")
                 }
@@ -64,5 +80,16 @@ struct CourseView: View {
         if let setCourses = setCourses {
             courses = Array(setCourses).sorted { $0.name < $1.name }
         }
+    }
+}
+
+struct ArchivedCoursesView: View {
+    let archivedCourses: [CourseDto]
+    
+    var body: some View {
+        List(archivedCourses, id: \.id) { course in
+            Text(course.name)
+        }
+        .padding()
     }
 }

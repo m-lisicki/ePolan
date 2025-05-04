@@ -214,11 +214,12 @@ struct CreateLessonView: View {
             DatePicker("Lesson Date", selection: $date, displayedComponents: .date)
             Button("Add") {
                 Task {
-                    //TODO: - Implement data sending
-                    //let newLesson = try await OAuthManager.shared.dbCommunicationServices?.addLesson(courseId: course.id, exercisesAmount: Int32(exercisesAmount))
-                    showCreate = false
-                    
-                    //lessons = lessons.append(newLesson)
+                    if let newLesson = try await OAuthManager.shared.dbCommunicationServices?.manualAddLesson(courseId: course.id, date: date.ISO8601Format()) {
+                        showCreate = false
+                        
+                        
+                        lessons = lessons?.union([newLesson])
+                    }
                 }
             }
             .buttonStyle(.borderedProminent)

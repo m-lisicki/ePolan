@@ -115,7 +115,8 @@ struct CreateCourseView: View {
                             swiftShortSymbols: selectedDays,
                             students: Set(emails),
                             startDateISO: startDate.ISO8601Format(),
-                            endDateISO: endDate.ISO8601Format()
+                            endDateISO: endDate.ISO8601Format(),
+                            frequency: Int32(repeatInterval)
                         )
                         
                         
