@@ -16,6 +16,7 @@ import Shared
 struct CourseView: View {
     @State var courses: Array<CourseDto>?
     @State var showAddCode = false
+    @Environment(NetworkMonitor.self) private var networkMonitor
 
     var body: some View {
         NavigationStack {
@@ -44,12 +45,9 @@ struct CourseView: View {
                         .refreshable {
                             await fetchData()
                         }
-                        if courses.filter({ $0.isArchived == false }) == []{
-                            VStack {
-                                Image(systemName: "compass.drawing")
-                                    .imageScale(.large)
-                                    .symbolRenderingMode(.palette)
-                                Text("No courses")
+                        .overlay {
+                            if courses.filter({ $0.isArchived == false }) == [] {
+                                ContentUnavailableView("No courses", systemImage: "compass.drawing")
                             }
                         }
                     }
@@ -95,6 +93,11 @@ struct CourseView: View {
                 Task {
                     await fetchData()
                 }
+            }
+        }
+        .onChange(of: networkMonitor.isConnected) {
+            Task {
+                await fetchData()
             }
         }
     }

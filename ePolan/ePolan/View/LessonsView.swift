@@ -49,6 +49,8 @@ struct LessonsView: View {
     static let statusOrder = ["Future", "Near", "Past"]
     @State var isExpanded = [false, true, true]
     
+    @Environment(NetworkMonitor.self) private var networkMonitor
+
     var body: some View {
         VStack {
             if let groupedLessons = groupedLessons {
@@ -88,12 +90,10 @@ struct LessonsView: View {
                         await fetchLessons()
                         await fetchActivity()
                     }
+                }
+                .overlay {
                     if groupedLessons == [:] {
-                        VStack {
-                            Image(systemName: "person.3").symbolRenderingMode(.palette)
-                                .imageScale(.large)
-                            Text("No lessons")
-                        }
+                        ContentUnavailableView("No lessons", systemImage: "person.3")
                     }
                 }
                 .overlay(alignment: .bottom) {
@@ -149,6 +149,15 @@ struct LessonsView: View {
         .onReceive(refreshController.refreshSignalActivity) { _ in
             Task {
                 await fetchActivity()
+            }
+        }
+        .onChange(of: networkMonitor.isConnected) {
+            Task {
+                async let lessonsTask: () = fetchLessons()
+                async let activityTask: () = fetchActivity()
+                
+                await lessonsTask
+                await activityTask
             }
         }
     }

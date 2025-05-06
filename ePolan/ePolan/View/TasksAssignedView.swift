@@ -22,10 +22,11 @@ struct TasksAssignedView: View {
     
     @Environment(RefreshController.self) var refreshController
     
+    @Environment(NetworkMonitor.self) private var networkMonitor
+
     var body: some View {
         VStack {
             if let declarations = declarations {
-                if !exercises.isEmpty {
                     List(exercises, id: \.id) { exercise in
                         HStack {
                             Text("\(exercise.exerciseNumber)\(exercise.subpoint ?? "").")
@@ -35,18 +36,17 @@ struct TasksAssignedView: View {
                     }
                     .refreshable {
                         await fetchData()
+                    }.overlay {
+                        if exercises.isEmpty {
+                            ContentUnavailableView("No exercises", systemImage: "pencil.and.list.clipboard")
+                        }
                     }
-                } else {
-                    Image(systemName: "pencil.and.list.clipboard")
-                        .symbolRenderingMode(.palette)
-                        .imageScale(.large)
-                    Text("No exercises")
-                }
             } else {
-                Image(systemName: "exclamationmark")
-                    .symbolRenderingMode(.multicolor)
-                    .imageScale(.large)
-                Text("Failed to fetch declarations")
+                VStack {
+                    Image(systemName: "slowmo")
+                        .symbolEffect(.variableColor.iterative.hideInactiveLayers.nonReversing, options: .repeat(.continuous))
+                        .imageScale(.large)
+                }.padding()
             }
             Stepper("Points: \(String(format: "%.2f", activity))", value: Binding<Double>(get:{self.activity},set:{self.activity = $0}), in: 0...5, step: 0.5)
                 .padding()
@@ -78,6 +78,11 @@ struct TasksAssignedView: View {
         }
         .task {
             await fetchData()
+        }
+        .onChange(of: networkMonitor.isConnected) {
+            Task {
+                await fetchData()
+            }
         }
         .navigationTitle(title)
     }

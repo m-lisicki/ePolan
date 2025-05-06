@@ -24,6 +24,8 @@ struct TasksAssignView: View {
     @State var savingError = false
     
     @Environment(\.dismiss) private var dismiss
+    
+    @Environment(NetworkMonitor.self) private var networkMonitor
 
     var body: some View {
         VStack {
@@ -34,11 +36,17 @@ struct TasksAssignView: View {
                     }
                 }
                 .environment(\.editMode, $isEditing)
+                .overlay {
+                    if exercises.isEmpty {
+                        ContentUnavailableView("No exercises", systemImage: "pencil.and.list.clipboard")
+                    }
+                }
             } else {
-                Image(systemName: "exclamationmark")
-                    .symbolRenderingMode(.multicolor)
-                    .imageScale(.large)
-                Text("Failed to fetch declarations")
+                VStack {
+                    Image(systemName: "slowmo")
+                        .symbolEffect(.variableColor.iterative.hideInactiveLayers.nonReversing, options: .repeat(.continuous))
+                        .imageScale(.large)
+                }
             }
         }
         .toolbar {
@@ -71,15 +79,11 @@ struct TasksAssignView: View {
             .disabled(initialSelection == selection)
         }
         .task {
-            do {
-                
-                declarations = try await dbQuery { try await $0.getAllLessonDeclarations(lessonId: lesson.id) }
-                selection = Set(declarations!.filter { $0.declarationStatus == DeclarationStatus.waiting }.compactMap(\.exercise))
-                
-                initialSelection = selection
-            } catch {
-                log.error("Database communication service is unavailable")
-                dismiss()
+            //await fetchData()
+        }
+        .onChange(of: networkMonitor.isConnected) {
+            Task {
+                //await fetchData()
             }
         }
         .alert(isPresented: $savingError) {
@@ -90,6 +94,13 @@ struct TasksAssignView: View {
             )
         }
         .navigationTitle(title)
+    }
+    
+    private func fetchData() async {
+        declarations = try? await dbQuery { try await $0.getAllLessonDeclarations(lessonId: lesson.id) }
+        selection = Set(declarations?.filter { $0.declarationStatus == DeclarationStatus.waiting }.compactMap(\.exercise) ?? [])
+        
+        initialSelection = selection
     }
     
     private func postExerciseUnDeclaration(declarationId: KotlinUuid) async {
