@@ -15,7 +15,7 @@ struct CreateCourseView: View {
     @Binding var courses: Array<CourseDto>?
     
     @State private var name = ""
-    @State private var instructor = ""
+    @State private var instructorEmail = ""
     @State private var selectedDays = Set<String>()
     @State private var emailInput = ""
     @State private var emails = Array<String>()
@@ -26,7 +26,7 @@ struct CreateCourseView: View {
     @State private var repeatInterval = 1
     
     var isFormValid: Bool {
-        !name.isEmpty && !instructor.isEmpty && !selectedDays.isEmpty && startDate < endDate
+        !name.isEmpty && !instructorEmail.isEmpty && !selectedDays.isEmpty && startDate < endDate && EmailHelper.isEmailValid(instructorEmail)
     }
     
     @Environment(\.dismiss) private var dismiss
@@ -75,7 +75,7 @@ struct CreateCourseView: View {
             
             // MARK: - Invite Students
             Section(header: Text("Invite")) {
-                TextField("Enter instructor email", text: $instructor)
+                TextField("Enter instructor email", text: $instructorEmail)
                 HStack {
                     TextField("Enter student email", text: $emailInput)
                         .keyboardType(.emailAddress)
@@ -111,7 +111,7 @@ struct CreateCourseView: View {
                         
                         let newCourse = try await services.createCourse(
                             name: name,
-                            instructor: instructor,
+                            instructor: instructorEmail,
                             swiftShortSymbols: selectedDays,
                             students: Set(emails),
                             startDateISO: startDate.ISO8601Format(),

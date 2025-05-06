@@ -32,7 +32,9 @@ object ApiClient {
         }
     }
 
-    const val BASE_URL = "http://localhost:8080"
+    const val IP = "localhost"
+    const val BASE_URL = "http://$IP:8080"
+    const val KEYCLOAK_URL = "http://$IP:8280"
 }
 
 class DBCommunicationServices(val token: String) {
@@ -182,7 +184,7 @@ class DBCommunicationServices(val token: String) {
     @Throws(Throwable::class)
     suspend fun getUserEmail(): String {
         val userInfo: UserInfoDto = ApiClient.client
-          .get("http://localhost:8280/realms/Users/protocol/openid-connect/userinfo") {
+          .get("${ApiClient.KEYCLOAK_URL}/realms/Users/protocol/openid-connect/userinfo") {
             header(HttpHeaders.Authorization, "Bearer $token")
           }
           .body()

@@ -10,6 +10,8 @@ import SwiftUI
 import AppAuth
 import Shared
 
+let ipAddress = "localhost"
+
 @MainActor @Observable
 final class OAuthManager {
     static let shared = OAuthManager()
@@ -24,13 +26,13 @@ final class OAuthManager {
     
     var dbCommunicationServices: DBCommunicationServices?
     var email: String?
-    
+        
     let configuration = OIDServiceConfiguration(
-        authorizationEndpoint: URL(string: "http://localhost:8280/realms/Users/protocol/openid-connect/auth")!,
-        tokenEndpoint: URL(string: "http://localhost:8280/realms/Users/protocol/openid-connect/token")!,
-        issuer: URL(string: "http://localhost:8280/realms/Users")!,
+        authorizationEndpoint: URL(string: "http://\(ipAddress):8280/realms/Users/protocol/openid-connect/auth")!,
+        tokenEndpoint: URL(string: "http://\(ipAddress):8280/realms/Users/protocol/openid-connect/token")!,
+        issuer: URL(string: "http://\(ipAddress):8280/realms/Users")!,
         registrationEndpoint: nil,
-        endSessionEndpoint: URL(string: "http://localhost:8280/realms/Users/protocol/openid-connect/logout")!
+        endSessionEndpoint: URL(string: "http://\(ipAddress):8280/realms/Users/protocol/openid-connect/logout")!
     )
     
     // MARK: — START FLOW
