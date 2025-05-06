@@ -76,6 +76,19 @@ final class OAuthManager {
         }
     }
     
+    // MARK: - Ensure Fresh Tokens
+        func performActionWithFreshTokens() {
+            // If token is expired or not valid, refresh the token
+            authState?.performAction { [weak self] (accessToken, idToken, error) in
+                if let error = error {
+                    return
+                }
+
+                // Token refreshed successfully
+                self?.dbCommunicationServices?.token = accessToken ?? ""
+            }
+        }
+    
     func resumeExternalUserAgentFlow(with url: URL) -> Bool {
         guard let flow = currentAuthorizationFlow, flow.resumeExternalUserAgentFlow(with: url) else {
             return false

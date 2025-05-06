@@ -72,6 +72,7 @@ struct TasksAssignView: View {
         }
         .task {
             do {
+                OAuthManager.shared.performActionWithFreshTokens()
                 guard let service = OAuthManager.shared.dbCommunicationServices else {
                     throw NSError(domain: "", code: 0, userInfo: nil)
                 }
@@ -96,6 +97,7 @@ struct TasksAssignView: View {
     }
     
     private func postExerciseUnDeclaration(declarationId: KotlinUuid) async {
+        OAuthManager.shared.performActionWithFreshTokens()
         let result = try? await OAuthManager.shared.dbCommunicationServices?.postUnDeclaration(declarationId: declarationId)
         if result == 200 {
             savingError = false
@@ -108,6 +110,7 @@ struct TasksAssignView: View {
     
     
     private func postExerciseDeclaration(exerciseId: KotlinUuid) async {
+        OAuthManager.shared.performActionWithFreshTokens()
         let result = try? await OAuthManager.shared.dbCommunicationServices?.postDeclaration(exerciseId: exerciseId)
         if result == 200 {
             savingError = false

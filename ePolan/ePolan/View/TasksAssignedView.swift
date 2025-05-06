@@ -56,7 +56,7 @@ struct TasksAssignedView: View {
 
                 if Task.isCancelled { return }
 
-                if let email = OAuthManager.shared.email {
+                if let email = ePolan.OAuthManager.shared.email {
                     do {
                         try await OAuthManager.shared.dbCommunicationServices?.addPoints(student: email, lesson: lesson, activityValue: newValue)
                     } catch {
@@ -78,7 +78,8 @@ struct TasksAssignedView: View {
         .navigationTitle(title)
     }
     
-    private func fetchData() async {
+    private func fetchData() async
+        OAuthManager.shared.performActionWithFreshTokens()
         declarations = try? await OAuthManager.shared.dbCommunicationServices?.getAllLessonDeclarations(lessonId: lesson.id)
     }
 }

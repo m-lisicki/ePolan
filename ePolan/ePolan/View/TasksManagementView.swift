@@ -59,6 +59,7 @@ struct TasksManagementView: View {
                     lesson = LessonDto(id: lesson.id, classDate: lesson.classDate, courseName: lesson.courseName, exercises: exercises, lessonStatus: lesson.lessonStatus)
                     
                     Task {
+                        OAuthManager.shared.performActionWithFreshTokens()
                         try await OAuthManager.shared.dbCommunicationServices?.postExercises(lesson: lesson)
                     }
                     refreshController.triggerRefreshExercises()

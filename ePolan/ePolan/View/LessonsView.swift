@@ -12,7 +12,10 @@ import Shared
 struct LessonsView: View {
     let course: CourseDto
     @State var lessons: Set<LessonDto>?
-    @State var points: Int?
+    var points: Double? {
+        pointsArray?.reduce(0) { $0 + $1.activityValue }
+    }
+    
     @State var pointsArray: Array<PointDto>?
     
     @State var showCreate = false
@@ -61,6 +64,7 @@ struct LessonsView: View {
                                                     if OAuthManager.shared.isAuthorised(user: course.creator) {
                                                         Button("Delete", role: .destructive) {
                                                             Task {
+                                                                OAuthManager.shared.performActionWithFreshTokens()
                                                                 try await OAuthManager.shared.dbCommunicationServices?.deleteLesson(lessonId: lesson.id)
                                                                 await fetchLessons()
                                                             }
@@ -80,6 +84,7 @@ struct LessonsView: View {
                     }
                     .refreshable {
                         await fetchLessons()
+                        await fetchActivity()
                     }
                     if groupedLessons == [:] {
                         VStack {
@@ -142,6 +147,7 @@ struct LessonsView: View {
     }
     
     private func fetchLessons() async {
+        OAuthManager.shared.performActionWithFreshTokens()
         let lessons = try? await OAuthManager.shared.dbCommunicationServices?.getAllLessons(courseId: course.id)
         if let lessons = lessons {
             self.lessons = Set(lessons)
@@ -149,12 +155,9 @@ struct LessonsView: View {
     }
     
     private func fetchActivity() async {
-        async let points = OAuthManager.shared.dbCommunicationServices?.getPoints(courseId: course.id).intValue
-        async let pointsArray = OAuthManager.shared.dbCommunicationServices?.getPointsForCourse(courseId: course.id)
-        if let points = try? await points {
-            self.points = points
-        }
-        if let pointsArray = try? await pointsArray {
+        OAuthManager.shared.performActionWithFreshTokens()
+         let pointsArray = try? await OAuthManager.shared.dbCommunicationServices?.getPointsForCourse(courseId: course.id)
+        if let pointsArray = pointsArray {
             self.pointsArray = pointsArray.reversed()
         }
     }
@@ -221,6 +224,7 @@ struct CreateLessonView: View {
             DatePicker("Lesson Date", selection: $date, displayedComponents: .date)
             Button("Add") {
                 Task {
+                    OAuthManager.shared.performActionWithFreshTokens()
                     if let newLesson = try await OAuthManager.shared.dbCommunicationServices?.manualAddLesson(courseId: course.id, date: date.ISO8601Format()) {
                         showCreate = false
                         

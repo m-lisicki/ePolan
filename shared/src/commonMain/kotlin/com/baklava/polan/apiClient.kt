@@ -37,7 +37,12 @@ object ApiClient {
     const val KEYCLOAK_URL = "http://$IP:8280"
 }
 
-class DBCommunicationServices(val token: String) {
+class DBCommunicationServices(token: String) {
+    var token: String = token
+        set(value: String) {
+            field = value
+        }
+        get() = field
 
     @Throws(Throwable::class)
     suspend fun createCourse(

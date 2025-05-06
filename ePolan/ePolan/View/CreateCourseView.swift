@@ -105,6 +105,7 @@ struct CreateCourseView: View {
             Button("Done") {
                 Task {
                     do {
+                        OAuthManager.shared.performActionWithFreshTokens()
                         guard let services = OAuthManager.shared.dbCommunicationServices else {
                             fatalError("No DB Communication Services")
                         }

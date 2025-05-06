@@ -31,6 +31,8 @@ struct CourseView: View {
                                 .swipeActions {
                                     Button("Archive") {
                                         Task {
+                                            
+                                            OAuthManager.shared.performActionWithFreshTokens()
                                             try await OAuthManager.shared.dbCommunicationServices?.archiveCourse(courseId: course.id)
                                             await fetchData()
                                         }
@@ -98,6 +100,7 @@ struct CourseView: View {
     }
     
     private func fetchData() async {
+        OAuthManager.shared.performActionWithFreshTokens()
         let setCourses = try? await OAuthManager.shared.dbCommunicationServices?.getAllCourses()
         if let setCourses = setCourses {
             courses = Array(setCourses).sorted { $0.name < $1.name }
@@ -114,6 +117,7 @@ struct JoinCourseView: View {
             TextField("Enter invitation code", text: $invitationCode)
             Button("Join") {
                 Task {
+                    OAuthManager.shared.performActionWithFreshTokens()
                     try await OAuthManager.shared.dbCommunicationServices?.joinCourse(invitationCode: invitationCode)
                     showAddCode = false
                 }

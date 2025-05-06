@@ -19,12 +19,16 @@ struct ModifyCourseUsers: View {
     var currentUser: String {
         OAuthManager.shared.email ?? ""
     }
-    
-    
+        
     var body: some View {
         VStack {
-            Text(course.courseCode)
-                .textSelection(.enabled)
+            HStack {
+                Text(course.courseCode)
+                    .textSelection(.enabled)
+                Button("Copy") {
+                    UIPasteboard.general.string = course.courseCode
+                }.buttonStyle(.borderedProminent)
+            }
             List(users, id: \.self) { user in
                 Text(user)
                     .bold(user == currentUser)
@@ -41,24 +45,25 @@ struct ModifyCourseUsers: View {
             }
             .listStyle(.plain)
             .padding()
-//            if OAuthManager.shared.isAuthorised(user: course.creator) {
-//                HStack {
-//                    TextField("Email", text: $email)
-//                        .textFieldStyle(.roundedBorder)
-//                    Button("Add") {
-//                        Task {
-//                            await addUser(email: EmailHelper.trimCharacters(email))
-//                        }
-//                    }
-//                    .buttonStyle(.borderedProminent)
-//                    .disabled(!EmailHelper.isEmailValid(email) || users.contains(EmailHelper.trimCharacters(email)))
-//                }
-//                .padding()
-//            }
+            if OAuthManager.shared.isAuthorised(user: course.creator) {
+                HStack {
+                    TextField("Email", text: $email)
+                        .textFieldStyle(.roundedBorder)
+                    Button("Add") {
+                        Task {
+                            await addUser(email: EmailHelper.trimCharacters(email))
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!EmailHelper.isEmailValid(email) || users.contains(EmailHelper.trimCharacters(email)))
+                }
+                .padding()
+            }
         }
         .navigationTitle("Course users")
         .navigationBarTitleDisplayMode(.inline)
         .task {
+            OAuthManager.shared.performActionWithFreshTokens()
                 let userSet = try? await OAuthManager.shared.dbCommunicationServices?.getAllStudents(courseId: course.id)
                 if let userSet = userSet {
                     users = Array(userSet).sorted { $0 < $1 }
@@ -74,18 +79,20 @@ struct ModifyCourseUsers: View {
         }
     }
     
-//    func addUser(email: String) async {
-//            let status = try? await OAuthManager.shared.dbCommunicationServices?.addStudent(courseId: course.id, email: email)
-//            if status != 200 {
-//                showingAlert = true
-//                return
-//            }
-//            self.users.append(email)
-//            self.email = ""
-//        
-//    }
+    func addUser(email: String) async {
+        OAuthManager.shared.performActionWithFreshTokens()
+            let status = try? await OAuthManager.shared.dbCommunicationServices?.addStudent(courseId: course.id, email: email)
+            if status != 200 {
+                showingAlert = true
+                return
+            }
+            self.users.append(email)
+            self.email = ""
+        
+    }
     
     func removeUser(email: String) async {
+        OAuthManager.shared.performActionWithFreshTokens()
             let status = try? await OAuthManager.shared.dbCommunicationServices?.removeStudent(courseId: course.id, email: email)
             if status != 200 {
                 showingAlert = true
