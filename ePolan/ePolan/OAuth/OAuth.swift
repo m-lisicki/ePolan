@@ -12,7 +12,8 @@ import Shared
 
 let ipAddress = "localhost"
 
-@MainActor @Observable
+@MainActor
+@Observable
 final class OAuthManager {
     static let shared = OAuthManager()
     private init() {}
@@ -26,6 +27,11 @@ final class OAuthManager {
     
     var dbCommunicationServices: DBCommunicationServices?
     var email: String?
+    
+    func useCommunicationServices() async -> DBCommunicationServices {
+        let freshToken = await returnFreshToken()
+        return DBCommunicationServices(token: freshToken)
+    }
         
     let configuration = OIDServiceConfiguration(
         authorizationEndpoint: URL(string: "http://\(ipAddress):8280/realms/Users/protocol/openid-connect/auth")!,
@@ -34,6 +40,19 @@ final class OAuthManager {
         registrationEndpoint: nil,
         endSessionEndpoint: URL(string: "http://\(ipAddress):8280/realms/Users/protocol/openid-connect/logout")!
     )
+    
+    // MARK: - Ensure Fresh Tokens
+    func returnFreshToken() async -> String {
+        await withCheckedContinuation { continuation in
+            authState?.performAction { accessToken, idToken, error in
+                if let token = accessToken {
+                    continuation.resume(returning: token)
+                } else {
+                    continuation.resume(returning: "")
+                }
+            }
+        }
+    }
     
     // MARK: — START FLOW
     func authorize() {
@@ -76,26 +95,6 @@ final class OAuthManager {
         }
     }
     
-    // MARK: - Ensure Fresh Tokens
-        func performActionWithFreshTokens() {
-            // If token is expired or not valid, refresh the token
-            authState?.performAction { [weak self] (accessToken, idToken, error) in
-                if let error = error {
-                    return
-                }
-
-                // Token refreshed successfully
-                self?.dbCommunicationServices?.token = accessToken ?? ""
-            }
-        }
-    
-    func resumeExternalUserAgentFlow(with url: URL) -> Bool {
-        guard let flow = currentAuthorizationFlow, flow.resumeExternalUserAgentFlow(with: url) else {
-            return false
-        }
-        currentAuthorizationFlow = nil
-        return true
-    }
     
     func logout() {
         guard let idToken = authState?.lastTokenResponse?.idToken else {
@@ -136,4 +135,10 @@ final class OAuthManager {
     func isAuthorised(user: String) -> Bool {
        user == self.email ?? ""
     }
+}
+
+@discardableResult
+func dbQuery<T>(_ operation: @escaping (DBCommunicationServices) async throws -> T) async throws -> T {
+    let dbService = await OAuthManager.shared.useCommunicationServices()
+    return try await operation(dbService)
 }

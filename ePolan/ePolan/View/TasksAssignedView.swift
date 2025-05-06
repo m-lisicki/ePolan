@@ -58,7 +58,9 @@ struct TasksAssignedView: View {
 
                 if let email = ePolan.OAuthManager.shared.email {
                     do {
-                        try await OAuthManager.shared.dbCommunicationServices?.addPoints(student: email, lesson: lesson, activityValue: newValue)
+                        try await dbQuery {
+                            try await $0.addPoints(student: email, lesson: lesson, activityValue: newValue)
+                        }
                     } catch {
                         savingError = true
                     }
@@ -78,8 +80,7 @@ struct TasksAssignedView: View {
         .navigationTitle(title)
     }
     
-    private func fetchData() async
-        OAuthManager.shared.performActionWithFreshTokens()
-        declarations = try? await OAuthManager.shared.dbCommunicationServices?.getAllLessonDeclarations(lessonId: lesson.id)
+    private func fetchData() async {
+        declarations = try? await dbQuery { try await $0.getAllLessonDeclarations(lessonId: lesson.id) }
     }
 }

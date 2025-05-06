@@ -5,7 +5,7 @@ let log = Logger()
 
 @main
 struct EPolan: App {
-    @State private var oauth = OAuthManager.shared
+    let oauth = OAuthManager.shared
     @State var refreshController = RefreshController()
 
     var body: some Scene {
@@ -13,11 +13,6 @@ struct EPolan: App {
             ContentView()
                 .environment(oauth)
                 .environment(refreshController)
-                .onOpenURL { url in
-                    if oauth.resumeExternalUserAgentFlow(with: url) {
-                        log.info("Resumed flow from redirect URI")
-                    }
-                }
         }
     }
 }

@@ -72,12 +72,8 @@ struct TasksAssignView: View {
         }
         .task {
             do {
-                OAuthManager.shared.performActionWithFreshTokens()
-                guard let service = OAuthManager.shared.dbCommunicationServices else {
-                    throw NSError(domain: "", code: 0, userInfo: nil)
-                }
                 
-                declarations = try await service.getAllLessonDeclarations(lessonId: lesson.id)
+                declarations = try await dbQuery { try await $0.getAllLessonDeclarations(lessonId: lesson.id) }
                 selection = Set(declarations!.filter { $0.declarationStatus == DeclarationStatus.waiting }.compactMap(\.exercise))
                 
                 initialSelection = selection
@@ -97,27 +93,27 @@ struct TasksAssignView: View {
     }
     
     private func postExerciseUnDeclaration(declarationId: KotlinUuid) async {
-        OAuthManager.shared.performActionWithFreshTokens()
-        let result = try? await OAuthManager.shared.dbCommunicationServices?.postUnDeclaration(declarationId: declarationId)
+        let result = try? await dbQuery {
+            try await $0.postUnDeclaration(declarationId: declarationId)
+        }
         if result == 200 {
             savingError = false
         } else {
             savingError = true
             return
         }
-        declarations = try? await OAuthManager.shared.dbCommunicationServices?.getAllLessonDeclarations(lessonId: lesson.id)
+        declarations = try? await dbQuery { try await $0.getAllLessonDeclarations(lessonId: lesson.id) }
     }
     
     
     private func postExerciseDeclaration(exerciseId: KotlinUuid) async {
-        OAuthManager.shared.performActionWithFreshTokens()
-        let result = try? await OAuthManager.shared.dbCommunicationServices?.postDeclaration(exerciseId: exerciseId)
+        let result = try? await dbQuery { try await $0.postDeclaration(exerciseId: exerciseId) }
         if result == 200 {
             savingError = false
         } else {
             savingError = true
             return
         }
-        declarations = try? await OAuthManager.shared.dbCommunicationServices?.getAllLessonDeclarations(lessonId: lesson.id)
+        declarations = try? await dbQuery { try await $0.getAllLessonDeclarations(lessonId: lesson.id) }
     }
 }

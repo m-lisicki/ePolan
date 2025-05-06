@@ -64,8 +64,9 @@ struct LessonsView: View {
                                                     if OAuthManager.shared.isAuthorised(user: course.creator) {
                                                         Button("Delete", role: .destructive) {
                                                             Task {
-                                                                OAuthManager.shared.performActionWithFreshTokens()
-                                                                try await OAuthManager.shared.dbCommunicationServices?.deleteLesson(lessonId: lesson.id)
+                                                                try await dbQuery {
+                                                                    try await $0.deleteLesson(lessonId: lesson.id)
+                                                                }
                                                                 await fetchLessons()
                                                             }
                                                         }
@@ -147,16 +148,14 @@ struct LessonsView: View {
     }
     
     private func fetchLessons() async {
-        OAuthManager.shared.performActionWithFreshTokens()
-        let lessons = try? await OAuthManager.shared.dbCommunicationServices?.getAllLessons(courseId: course.id)
+        let lessons =  try? await dbQuery { try await $0.getAllLessons(courseId: course.id) }
         if let lessons = lessons {
             self.lessons = Set(lessons)
         }
     }
     
     private func fetchActivity() async {
-        OAuthManager.shared.performActionWithFreshTokens()
-         let pointsArray = try? await OAuthManager.shared.dbCommunicationServices?.getPointsForCourse(courseId: course.id)
+        let pointsArray = try? await dbQuery { try await $0.getPointsForCourse(courseId: course.id) }
         if let pointsArray = pointsArray {
             self.pointsArray = pointsArray.reversed()
         }
@@ -224,11 +223,10 @@ struct CreateLessonView: View {
             DatePicker("Lesson Date", selection: $date, displayedComponents: .date)
             Button("Add") {
                 Task {
-                    OAuthManager.shared.performActionWithFreshTokens()
-                    if let newLesson = try await OAuthManager.shared.dbCommunicationServices?.manualAddLesson(courseId: course.id, date: date.ISO8601Format()) {
+                    if let newLesson = try? await dbQuery({
+                        try await $0.manualAddLesson(courseId: course.id, date: date.ISO8601Format())
+                    }) {
                         showCreate = false
-                        
-                        
                         lessons = lessons?.union([newLesson])
                     }
                 }

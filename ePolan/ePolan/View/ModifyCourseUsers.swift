@@ -63,8 +63,9 @@ struct ModifyCourseUsers: View {
         .navigationTitle("Course users")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            OAuthManager.shared.performActionWithFreshTokens()
-                let userSet = try? await OAuthManager.shared.dbCommunicationServices?.getAllStudents(courseId: course.id)
+            let userSet = try? await dbQuery {
+                try? await $0.getAllStudents(courseId: course.id)
+            }
                 if let userSet = userSet {
                     users = Array(userSet).sorted { $0 < $1 }
                 }
@@ -80,8 +81,7 @@ struct ModifyCourseUsers: View {
     }
     
     func addUser(email: String) async {
-        OAuthManager.shared.performActionWithFreshTokens()
-            let status = try? await OAuthManager.shared.dbCommunicationServices?.addStudent(courseId: course.id, email: email)
+        let status = try? await dbQuery { try await $0.addStudent(courseId: course.id, email: email) }
             if status != 200 {
                 showingAlert = true
                 return
@@ -92,8 +92,7 @@ struct ModifyCourseUsers: View {
     }
     
     func removeUser(email: String) async {
-        OAuthManager.shared.performActionWithFreshTokens()
-            let status = try? await OAuthManager.shared.dbCommunicationServices?.removeStudent(courseId: course.id, email: email)
+        let status = try? await dbQuery { try await $0.removeStudent(courseId: course.id, email: email) }
             if status != 200 {
                 showingAlert = true
                 return

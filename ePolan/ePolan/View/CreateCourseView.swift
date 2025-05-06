@@ -105,12 +105,9 @@ struct CreateCourseView: View {
             Button("Done") {
                 Task {
                     do {
-                        OAuthManager.shared.performActionWithFreshTokens()
-                        guard let services = OAuthManager.shared.dbCommunicationServices else {
-                            fatalError("No DB Communication Services")
-                        }
                         
-                        let newCourse = try await services.createCourse(
+                        let newCourse =  try await dbQuery {
+                            try await $0.createCourse(
                             name: name,
                             instructor: instructorEmail,
                             swiftShortSymbols: selectedDays,
@@ -119,6 +116,7 @@ struct CreateCourseView: View {
                             endDateISO: endDate.ISO8601Format(),
                             frequency: Int32(repeatInterval)
                         )
+                        }
                         
                         
                         
