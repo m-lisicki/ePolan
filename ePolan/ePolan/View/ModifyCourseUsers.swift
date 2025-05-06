@@ -22,13 +22,6 @@ struct ModifyCourseUsers: View {
         
     var body: some View {
         VStack {
-            HStack {
-                Text(course.courseCode)
-                    .textSelection(.enabled)
-                Button("Copy") {
-                    UIPasteboard.general.string = course.courseCode
-                }.buttonStyle(.borderedProminent)
-            }
             List(users, id: \.self) { user in
                 Text(user)
                     .bold(user == currentUser)
@@ -59,6 +52,20 @@ struct ModifyCourseUsers: View {
                 }
                 .padding()
             }
+            HStack {
+            VStack(alignment: .leading) {
+                Text("Invitation code:")
+                    .font(.subheadline)
+                    Text(course.courseCode)
+                        .font(.caption)
+            }
+                Spacer()
+                Button("Copy") {
+                    UIPasteboard.general.string = course.courseCode
+            }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding()
         }
         .navigationTitle("Course users")
         .navigationBarTitleDisplayMode(.inline)

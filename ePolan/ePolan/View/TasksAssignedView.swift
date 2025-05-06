@@ -20,6 +20,8 @@ struct TasksAssignedView: View {
     @State var activityTask: Task<Void, Never>?
     @State var savingError = false
     
+    @Environment(RefreshController.self) var refreshController
+    
     var body: some View {
         VStack {
             if let declarations = declarations {
@@ -52,7 +54,7 @@ struct TasksAssignedView: View {
         .onChange(of: activity) { oldValue, newValue in
             activityTask?.cancel()
             activityTask = Task {
-                try? await Task.sleep(for: .seconds(2))
+                try? await Task.sleep(for: .seconds(1))
 
                 if Task.isCancelled { return }
 
@@ -61,6 +63,7 @@ struct TasksAssignedView: View {
                         try await dbQuery {
                             try await $0.addPoints(student: email, lesson: lesson, activityValue: newValue)
                         }
+                        refreshController.refreshSignalActivity.send()
                     } catch {
                         savingError = true
                     }
@@ -75,7 +78,7 @@ struct TasksAssignedView: View {
             )
         }
         .task {
-                await fetchData()
+            await fetchData()
         }
         .navigationTitle(title)
     }

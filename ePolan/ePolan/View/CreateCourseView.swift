@@ -123,7 +123,7 @@ struct CreateCourseView: View {
                         await withThrowingTaskGroup { group in
                             for email in emails {
                                 group.addTask {
-                                    try await services.addStudent(courseId: newCourse.id,email: EmailHelper.trimCharacters(email))
+                                    try await dbQuery { try await $0.addStudent(courseId: newCourse.id,email: EmailHelper.trimCharacters(email)) }
                                 }
                             }
                         }

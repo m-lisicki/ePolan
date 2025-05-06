@@ -75,15 +75,15 @@ struct CourseView: View {
                         Image(systemName: "archivebox")
                     }
                 }
-                NavigationLink(destination: CreateCourseView(courses: $courses)) {
-                    Image(systemName: "plus")
-                }
                 Button(action: {
                     withAnimation {
                         showAddCode.toggle()
                     }
                 }) {
                     Image(systemName: showAddCode ? "xmark" : "person.crop.badge.magnifyingglass.fill").contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer), options: .nonRepeating))
+                }
+                NavigationLink(destination: CreateCourseView(courses: $courses)) {
+                    Image(systemName: "plus")
                 }
             }
         }
@@ -114,7 +114,7 @@ struct JoinCourseView: View {
     @Binding var showAddCode: Bool
     
     var body: some View {
-        VStack {
+        HStack {
             TextField("Enter invitation code", text: $invitationCode)
             Button("Join") {
                 Task {

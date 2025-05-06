@@ -19,14 +19,15 @@ struct LessonsView: View {
     @State var pointsArray: Array<PointDto>?
     
     @State var showCreate = false
+    @State var hasRunInitialTask = false
     @Environment(RefreshController.self) var refreshController
-        
+    
     var groupedLessons: [String: [LessonDto]]? {
         let formatter = ISO8601DateFormatter()
         return lessons?
             .sorted {
-                    formatter.date(from: $0.getClassDateString()) ?? .distantPast >
-                    formatter.date(from: $1.getClassDateString()) ?? .distantPast
+                formatter.date(from: $0.getClassDateString()) ?? .distantPast >
+                formatter.date(from: $1.getClassDateString()) ?? .distantPast
             }
             .reduce(into: [:]) {
                 $0[$1.statusText, default: []].append($1)
@@ -111,15 +112,20 @@ struct LessonsView: View {
             }
         }
         .task {
+            guard !hasRunInitialTask else {
+                return
+            }
             async let lessonsTask: () = fetchLessons()
             async let activityTask: () = fetchActivity()
             
             await lessonsTask
             await activityTask
+            
+            hasRunInitialTask = true
         }
         .toolbar {
             if let points = points {
-                Text("Points: \(points)")
+                Text(String(format: "%.2f", points) + " points")
                     .font(.caption)
             }
             NavigationLink(destination: ModifyCourseUsers(course: course)) {
@@ -219,7 +225,7 @@ struct CreateLessonView: View {
     @State var date: Date = Date()
     
     var body: some View {
-        VStack {
+        HStack {
             DatePicker("Lesson Date", selection: $date, displayedComponents: .date)
             Button("Add") {
                 Task {
