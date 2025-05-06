@@ -55,19 +55,18 @@ struct TasksAssignedView: View {
             activityTask?.cancel()
             activityTask = Task {
                 try? await Task.sleep(for: .seconds(1))
-
+                
                 if Task.isCancelled { return }
-
-                if let email = ePolan.OAuthManager.shared.email {
-                    do {
-                        try await dbQuery {
-                            try await $0.addPoints(student: email, lesson: lesson, activityValue: newValue)
-                        }
-                        refreshController.refreshSignalActivity.send()
-                    } catch {
-                        savingError = true
+                
+                do {
+                    try await dbQuery {
+                        try await $0.addPoints(lessonId: lesson.id, activityValue: newValue)
                     }
+                    refreshController.refreshSignalActivity.send()
+                } catch {
+                    savingError = true
                 }
+                
             }
         }
         .alert(isPresented: $savingError) {

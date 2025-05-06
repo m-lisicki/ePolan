@@ -32,7 +32,7 @@ object ApiClient {
         }
     }
 
-    const val IP = "localhost"
+    const val IP = "192.168.254.134"
     const val BASE_URL = "http://$IP:8080"
     const val KEYCLOAK_URL = "http://$IP:8280"
 }
@@ -169,18 +169,10 @@ class DBCommunicationServices(token: String) {
     }
 
     @Throws(Throwable::class)
-    suspend fun addPoints(student: String, lesson: LessonDto, activityValue: Double) : Int {
-        val payload = PointDto(
-            id = Uuid.random(),
-            student = student,
-            lesson = lesson,
-            activityValue = activityValue
-        )
+    suspend fun addPoints(lessonId: Uuid, activityValue: Double) : Int {
 
-        val response = ApiClient.client.post("${ApiClient.BASE_URL}/points") {
+        val response = ApiClient.client.post("${ApiClient.BASE_URL}/points/$lessonId/$activityValue") {
             header(HttpHeaders.Authorization, "Bearer $token")
-            contentType(ContentType.Application.Json)
-            setBody(payload)
         }
 
         return response.status.value

@@ -10,7 +10,7 @@ import SwiftUI
 import AppAuth
 import Shared
 
-let ipAddress = "localhost"
+let ipAddress = "192.168.254.134"
 
 @MainActor
 @Observable
@@ -19,6 +19,7 @@ final class OAuthManager {
     private init() {}
     
     var authState: OIDAuthState?
+    var changePleaseGo = false
     private var currentAuthorizationFlow: OIDExternalUserAgentSession?
     
     let clientID = "ClassMatcher"
@@ -85,6 +86,7 @@ final class OAuthManager {
                         self?.dbCommunicationServices = DBCommunicationServices(token: accessToken)
                     }
                     self?.authState = state
+                    self?.changePleaseGo = true
                     Task {
                         self?.email = try? await OAuthManager.shared.dbCommunicationServices?.getUserEmail()
                     }
@@ -126,6 +128,7 @@ final class OAuthManager {
                 } else {
                     log.info("Logged out successfully")
                     self?.authState = nil
+                    self?.changePleaseGo = false
                     self?.dbCommunicationServices = nil
                     self?.email = nil
                 }

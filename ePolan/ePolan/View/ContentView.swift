@@ -7,7 +7,7 @@ struct ContentView: View {
     
     var body: some View {
         VStack {
-            if oauth.authState == nil {
+            if !OAuthManager.shared.changePleaseGo {
                 SignInView()
             } else {
                 BottomBarView()
