@@ -10,6 +10,7 @@
 		058557BB273AAA24004C7B11 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 058557BA273AAA24004C7B11 /* Assets.xcassets */; };
 		058557D9273AAEEB004C7B11 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 058557D8273AAEEB004C7B11 /* Preview Assets.xcassets */; };
 		2152FB042600AC8F00CF470E /* ePolan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2152FB032600AC8F00CF470E /* ePolan.swift */; };
+		D4131E772DCE75EC0055BF17 /* Cache.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4131E762DCE75EC0055BF17 /* Cache.swift */; };
 		D42E4BEB2DBE1A18008C804D /* AppAuth in Frameworks */ = {isa = PBXBuildFile; productRef = D42E4BEA2DBE1A18008C804D /* AppAuth */; };
 /* End PBXBuildFile section */
 
@@ -20,6 +21,7 @@
 		7555FF7B242A565900829871 /* ePolan.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ePolan.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7555FF8C242A565B00829871 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AB3632DC29227652001CCB65 /* Config.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		D4131E762DCE75EC0055BF17 /* Cache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cache.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -75,6 +77,7 @@
 		7555FF7D242A565900829871 /* ePolan */ = {
 			isa = PBXGroup;
 			children = (
+				D4131E762DCE75EC0055BF17 /* Cache.swift */,
 				D4DEBBE72DBE3DDD00218D24 /* OAuth */,
 				D42E4BB52DBD9296008C804D /* View */,
 				058557BA273AAA24004C7B11 /* Assets.xcassets */,
@@ -96,9 +99,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		7555FF7A242A565900829871 /* Tutti */ = {
+		7555FF7A242A565900829871 /* ePolan */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 7555FFA5242A565B00829871 /* Build configuration list for PBXNativeTarget "Tutti" */;
+			buildConfigurationList = 7555FFA5242A565B00829871 /* Build configuration list for PBXNativeTarget "ePolan" */;
 			buildPhases = (
 				F36B1CEA2AD836FC00CB74D5 /* Compile Kotlin Framework */,
 				D4A122CA2DBD8EE6005AF29C /* ShellScript */,
@@ -114,7 +117,7 @@
 				D42E4BB52DBD9296008C804D /* View */,
 				D4DEBBE72DBE3DDD00218D24 /* OAuth */,
 			);
-			name = Tutti;
+			name = ePolan;
 			packageProductDependencies = (
 				D42E4BEA2DBE1A18008C804D /* AppAuth */,
 			);
@@ -154,7 +157,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				7555FF7A242A565900829871 /* Tutti */,
+				7555FF7A242A565900829871 /* ePolan */,
 			);
 		};
 /* End PBXProject section */
@@ -215,6 +218,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				2152FB042600AC8F00CF470E /* ePolan.swift in Sources */,
+				D4131E772DCE75EC0055BF17 /* Cache.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -369,7 +373,6 @@
 				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = com.baklava.polan;
 				PRODUCT_NAME = "${APP_NAME}";
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -398,7 +401,6 @@
 				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = com.baklava.polan;
 				PRODUCT_NAME = "${APP_NAME}";
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
@@ -415,7 +417,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		7555FFA5242A565B00829871 /* Build configuration list for PBXNativeTarget "Tutti" */ = {
+		7555FFA5242A565B00829871 /* Build configuration list for PBXNativeTarget "ePolan" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				7555FFA6242A565B00829871 /* Debug */,

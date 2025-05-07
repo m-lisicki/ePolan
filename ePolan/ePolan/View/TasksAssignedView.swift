@@ -1,24 +1,26 @@
 //
 //  TasksAssignedView.swift
-//  iosApp
+//  ePolan
 //
 //  Created by Michał Lisicki on 30/04/2025.
 //  Copyright © 2025 orgName. All rights reserved.
 //
 
 import SwiftUI
-import Shared
+@preconcurrency import Shared
 import Combine
 
 struct TasksAssignedView: View {
     let title: String
-    let lesson: LessonDto
+    let lessonId: KotlinUuid
     @State var exercises: Array<ExerciseDto>
-    @State var declarations: Set<DeclarationDto>?
+    @State var declarations = Set<DeclarationDto>()
     @State var activity: Double
     
     @State var activityTask: Task<Void, Never>?
     @State var savingError = false
+    
+    @Environment(DeclarationsCache.self) var declarationsCache
     
     @Environment(RefreshController.self) var refreshController
     
@@ -26,7 +28,6 @@ struct TasksAssignedView: View {
 
     var body: some View {
         VStack {
-            if let declarations = declarations {
                     List(exercises, id: \.id) { exercise in
                         HStack {
                             Text("\(exercise.exerciseNumber)\(exercise.subpoint ?? "").")
@@ -39,15 +40,10 @@ struct TasksAssignedView: View {
                     }.overlay {
                         if exercises.isEmpty {
                             ContentUnavailableView("No exercises", systemImage: "pencil.and.list.clipboard")
+                        } else if declarations.isEmpty {
+                            ContentUnavailableView("No declarations", systemImage: "person.fill")
                         }
                     }
-            } else {
-                VStack {
-                    Image(systemName: "slowmo")
-                        .symbolEffect(.variableColor.iterative.hideInactiveLayers.nonReversing, options: .repeat(.continuous))
-                        .imageScale(.large)
-                }.padding()
-            }
             Stepper("Points: \(String(format: "%.2f", activity))", value: Binding<Double>(get:{self.activity},set:{self.activity = $0}), in: 0...5, step: 0.5)
                 .padding()
         }
@@ -60,7 +56,7 @@ struct TasksAssignedView: View {
                 
                 do {
                     try await dbQuery {
-                        try await $0.addPoints(lessonId: lesson.id, activityValue: newValue)
+                        try await $0.addPoints(lessonId: lessonId, activityValue: newValue)
                     }
                     refreshController.refreshSignalActivity.send()
                 } catch {
@@ -87,7 +83,16 @@ struct TasksAssignedView: View {
         .navigationTitle(title)
     }
     
-    private func fetchData() async {
-        declarations = try? await dbQuery { try await $0.getAllLessonDeclarations(lessonId: lesson.id) }
+    private func fetchData(forceRefresh: Bool = false) async {
+        if !forceRefresh, let declarationsCache = declarationsCache.loadCachedDeclarations(id: lessonId) {
+            declarations = declarationsCache
+            return
+        }
+        
+        let declarations = try? await dbQuery { try await $0.getAllLessonDeclarations(lessonId: lessonId) }
+        if let declarations = declarations {
+            self.declarations = declarations
+            declarationsCache.addDeclarationsToCache(id: lessonId, declarations)
+        }
     }
 }

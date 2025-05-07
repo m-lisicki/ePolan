@@ -1,6 +1,6 @@
 //
 //  UserManagementView.swift
-//  iosApp
+//  ePolan
 //
 //  Created by Michał Lisicki on 27/04/2025.
 //  Copyright © 2025 orgName. All rights reserved.
@@ -19,8 +19,9 @@ struct UserManagementView: View {
                     HStack {
                         Label("Email", systemImage: "envelope")
                         Spacer()
-                        Text(OAuthManager.shared.email ?? "?")
+                        Text(OAuthManager.shared.email ?? "")
                             .foregroundColor(.secondary)
+                            .redacted(reason: OAuthManager.shared.email?.isEmpty ?? false ? .placeholder : [])
                     }
                     Button(role: .destructive) {
                             oauth.logout()

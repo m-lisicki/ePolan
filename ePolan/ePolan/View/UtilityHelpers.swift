@@ -1,13 +1,13 @@
 //
 //  UtilityHelpers.swift
-//  iosApp
+//  ePolan
 //
 //  Created by Michał Lisicki on 30/04/2025.
 //  Copyright © 2025 orgName. All rights reserved.
 //
 
 import Foundation
-import Shared
+@preconcurrency import Shared
 
 extension LessonDto {
     var statusText: String {
@@ -24,7 +24,6 @@ struct EmailHelper {
     static func trimCharacters(_ email: String) -> String {
         return email.trimmingCharacters(in: .whitespacesAndNewlines)
     }
-    
     static func isEmailValid(_ email: String, emails: Array<String>? = nil) -> Bool {
         let email = trimCharacters(email)
         return !email.isEmpty && email.range(of: #"^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$"#, options: .regularExpression) != nil && !(emails?.contains(email) ?? false)

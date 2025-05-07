@@ -1,30 +1,34 @@
 //
 //  LessonsView.swift
-//  iosApp
+//  ePolan
 //
 //  Created by Michał Lisicki on 30/04/2025.
 //  Copyright © 2025 orgName. All rights reserved.
 //
 
 import SwiftUI
-import Shared
+@preconcurrency import Shared
 
 struct LessonsView: View {
-    let course: CourseDto
-    @State var lessons: Set<LessonDto>?
+    @Binding var course: CourseDto
+    
     var points: Double? {
         pointsArray?.reduce(0) { $0 + $1.activityValue }
     }
     
+    @State var lessons: Set<LessonDto> = []
+    
     @State var pointsArray: Array<PointDto>?
+    
+    @Environment(LessonsCache.self) var lessonsCache
     
     @State var showCreate = false
     @State var hasRunInitialTask = false
     @Environment(RefreshController.self) var refreshController
     
-    var groupedLessons: [String: [LessonDto]]? {
+    var groupedLessons: [String: [LessonDto]] {
         let formatter = ISO8601DateFormatter()
-        return lessons?
+        return lessons
             .sorted {
                 formatter.date(from: $0.getClassDateString()) ?? .distantPast >
                 formatter.date(from: $1.getClassDateString()) ?? .distantPast
@@ -46,14 +50,13 @@ struct LessonsView: View {
         }
     }
     
-    static let statusOrder = ["Future", "Near", "Past"]
+    nonisolated static let statusOrder = ["Future", "Near", "Past"]
     @State var isExpanded = [false, true, true]
     
     @Environment(NetworkMonitor.self) private var networkMonitor
 
     var body: some View {
         VStack {
-            if let groupedLessons = groupedLessons {
                 ZStack {
                     List {
                         ForEach(Self.statusOrder.indices, id: \.self) { i in
@@ -67,10 +70,7 @@ struct LessonsView: View {
                                                     if OAuthManager.shared.isAuthorised(user: course.creator) {
                                                         Button("Delete", role: .destructive) {
                                                             Task {
-                                                                try await dbQuery {
-                                                                    try await $0.deleteLesson(lessonId: lesson.id)
-                                                                }
-                                                                await fetchLessons()
+                                                                try await deleteLesson(lesson: lesson)
                                                             }
                                                         }
                                                         .tint(.red)
@@ -87,8 +87,8 @@ struct LessonsView: View {
                         
                     }
                     .refreshable {
-                        await fetchLessons()
-                        await fetchActivity()
+                        await fetchLessons(forceRefresh: true)
+                        await fetchActivity(forceRefresh: true)
                     }
                 }
                 .overlay {
@@ -98,18 +98,11 @@ struct LessonsView: View {
                 }
                 .overlay(alignment: .bottom) {
                     if showCreate {
-                        CreateLessonView(course: course, lessons: $lessons, showCreate: $showCreate)
+                        CreateLessonView(courseId: course.id, lessons: $lessons, showCreate: $showCreate)
                             .transition(.slide)
                             .background(.thinMaterial)
                     }
                 }
-            } else {
-                VStack {
-                    Image(systemName: "slowmo")
-                        .symbolEffect(.variableColor.iterative.hideInactiveLayers.nonReversing, options: .repeat(.continuous))
-                        .imageScale(.large)
-                }
-            }
         }
         .task {
             guard !hasRunInitialTask else {
@@ -125,19 +118,25 @@ struct LessonsView: View {
         }
         .toolbar {
             if let points = points {
-                Text(String(format: "%.2f", points) + " points")
-                    .font(.caption)
+                ToolbarItem {
+                    Text(String(format: "%.2f", points) + " points")
+                        .font(.caption)
+                }
             }
-            NavigationLink(destination: ModifyCourseUsers(course: course)) {
-                Image(systemName: OAuthManager.shared.isAuthorised(user: course.creator) ? "person.2.badge.gearshape.fill" : "person.2.fill").symbolRenderingMode(.palette)
+            ToolbarItem {
+                NavigationLink(destination: ModifyCourseUsers(course: course)) {
+                    Image(systemName: OAuthManager.shared.isAuthorised(user: course.creator) ? "person.2.badge.gearshape.fill" : "person.2.fill").symbolRenderingMode(.palette)
+                }
             }
             if OAuthManager.shared.isAuthorised(user: course.creator) {
-                Button(action: {
-                    withAnimation {
-                        showCreate.toggle()
+                ToolbarItem {
+                    Button(action: {
+                        withAnimation {
+                            showCreate.toggle()
+                        }
+                    }) {
+                        Image(systemName: showCreate ? "xmark" :"plus").contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer), options: .nonRepeating))
                     }
-                }) {
-                    Image(systemName: showCreate ? "xmark" :"plus").contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer), options: .nonRepeating))
                 }
             }
         }
@@ -162,17 +161,38 @@ struct LessonsView: View {
         }
     }
     
-    private func fetchLessons() async {
-        let lessons =  try? await dbQuery { try await $0.getAllLessons(courseId: course.id) }
+    private func deleteLesson(lesson: LessonDto) async throws {
+        try await dbQuery {
+            try await $0.deleteLesson(lessonId: lesson.id)
+        }
+        lessons.remove(lesson)
+        lessonsCache.invalidateLessonsCache(id: course.id)
+    }
+    
+    private func fetchLessons(forceRefresh: Bool = false) async {
+        if !forceRefresh, let cachedLessons = lessonsCache.loadCachedLessons(id: course.id) {
+            lessons = cachedLessons
+            return
+        }
+        
+        let lessons = try? await dbQuery { try await $0.getAllLessons(courseId: course.id) }
         if let lessons = lessons {
             self.lessons = Set(lessons)
+            lessonsCache.addLessonsToCache(id: course.id, Set(lessons))
         }
     }
     
-    private func fetchActivity() async {
+    private func fetchActivity(forceRefresh: Bool = false) async {
+        if !forceRefresh, let cachedActivity = lessonsCache.loadCachedActivity(id: course.id) {
+            self.pointsArray = cachedActivity
+            return
+        }
+        
         let pointsArray = try? await dbQuery { try await $0.getPointsForCourse(courseId: course.id) }
         if let pointsArray = pointsArray {
-            self.pointsArray = pointsArray.reversed()
+            let reversedPointsArray: Array<PointDto> = pointsArray.reversed()
+            self.pointsArray = reversedPointsArray
+            lessonsCache.addActivityToCache(id: course.id, reversedPointsArray)
         }
     }
     
@@ -180,7 +200,7 @@ struct LessonsView: View {
     private func lessonView(for lesson: LessonDto, activity: Double) -> some View {
         if let lessonExercises = lesson.exercises {
             if lesson.lessonStatus == .past {
-                NavigationLink(destination: TasksAssignedView(title: formattedDate(from: lesson.getClassDateString()), lesson: lesson, exercises: lessonExercises.sortedByNumber(), activity: activity)) {
+                NavigationLink(destination: TasksAssignedView(title: formattedDate(from: lesson.getClassDateString()), lessonId: lesson.id, exercises: lessonExercises.sortedByNumber(), activity: activity)) {
                     HStack {
                         Text(formattedDate(from: lesson.getClassDateString()))
                             .font(.headline)
@@ -191,7 +211,7 @@ struct LessonsView: View {
             } else if lesson.lessonStatus == .near {
                 if !lessonExercises.isEmpty {
                     //TODO: - EDGE CASE WHEN ASSIGNED BUT NOT so past :>
-                    NavigationLink(destination: TasksAssignView(title: formattedDate(from: lesson.getClassDateString()), lesson: lesson, exercises: lessonExercises.sortedByNumber())) {
+                    NavigationLink(destination: TasksAssignView(title: formattedDate(from: lesson.getClassDateString()), lessonId: lesson.id, exercises: lessonExercises.sortedByNumber())) {
                         VStack(alignment: .leading) {
                             Text(formattedDate(from: lesson.getClassDateString()))
                                 .font(.headline)
@@ -227,8 +247,11 @@ struct LessonsView: View {
 }
 
 struct CreateLessonView: View {
-    let course: CourseDto
-    @Binding var lessons: Set<LessonDto>?
+    let courseId: KotlinUuid
+    @Binding var lessons: Set<LessonDto>
+    
+    @Environment(LessonsCache.self) var lessonsCache
+
     @Binding var showCreate: Bool
     
     @State var date: Date = Date()
@@ -239,10 +262,11 @@ struct CreateLessonView: View {
             Button("Add") {
                 Task {
                     if let newLesson = try? await dbQuery({
-                        try await $0.manualAddLesson(courseId: course.id, date: date.ISO8601Format())
+                        try await $0.manualAddLesson(courseId: courseId, date: date.ISO8601Format())
                     }) {
+                        lessons.insert(newLesson)
+                        lessonsCache.invalidateLessonsCache(id: courseId)
                         showCreate = false
-                        lessons = lessons?.union([newLesson])
                     }
                 }
             }

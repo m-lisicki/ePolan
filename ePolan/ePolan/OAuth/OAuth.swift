@@ -1,6 +1,6 @@
 //
 //  OAuth.swift
-//  iosApp
+//  ePolan
 //
 //  Created by Michał Lisicki on 27/04/2025.
 //  Copyright © 2025 orgName. All rights reserved.
@@ -8,25 +8,23 @@
 
 import SwiftUI
 import AppAuth
-import Shared
+@preconcurrency import Shared
 
 let ipAddress = "192.168.254.134"
 
-@MainActor
 @Observable
+@MainActor
 final class OAuthManager {
-    static let shared = OAuthManager()
+    @MainActor static let shared = OAuthManager()
     private init() {}
     
     var authState: OIDAuthState?
-    var changePleaseGo = false
     private var currentAuthorizationFlow: OIDExternalUserAgentSession?
     
     let clientID = "ClassMatcher"
     let clientSecret = ""
     let redirectURI = URL(string: "com.baklava:/oauthredirect")!
     
-    var dbCommunicationServices: DBCommunicationServices?
     var email: String?
     
     func useCommunicationServices() async -> DBCommunicationServices {
@@ -78,17 +76,14 @@ final class OAuthManager {
         self.currentAuthorizationFlow = OIDAuthState.authState(
             byPresenting: request,
             externalUserAgent: externalAgent!
-        ) { [weak self] state, error in
+        ) { @MainActor [weak self] state, error in
                 if let error = error {
                     log.error("Authorization error: \(error.localizedDescription)")
                 } else if let state = state {
-                    if let accessToken = state.lastTokenResponse?.accessToken {
-                        self?.dbCommunicationServices = DBCommunicationServices(token: accessToken)
-                    }
                     self?.authState = state
-                    self?.changePleaseGo = true
                     Task {
-                        self?.email = try? await OAuthManager.shared.dbCommunicationServices?.getUserEmail()
+                        let dbService = await OAuthManager.shared.useCommunicationServices()
+                        self?.email = try await dbService.getUserEmail()
                     }
                 } else {
                     log.error("Unknown authorization error")
@@ -122,14 +117,12 @@ final class OAuthManager {
         currentAuthorizationFlow = OIDAuthorizationService.present(
             endSessionRequest,
             externalUserAgent: externalAgent!
-        ) { [weak self] response, error in
+        ) { @MainActor [weak self] response, error in
                 if let error = error {
                     log.error("Logout error: \(error.localizedDescription)")
                 } else {
                     log.info("Logged out successfully")
                     self?.authState = nil
-                    self?.changePleaseGo = false
-                    self?.dbCommunicationServices = nil
                     self?.email = nil
                 }
         }
@@ -140,8 +133,10 @@ final class OAuthManager {
     }
 }
 
-@discardableResult
-func dbQuery<T>(_ operation: @escaping (DBCommunicationServices) async throws -> T) async throws -> T {
-    let dbService = await OAuthManager.shared.useCommunicationServices()
-    return try await operation(dbService)
+extension View {
+    @discardableResult
+    func dbQuery<T: Sendable>(_ operation: (DBCommunicationServices) async throws -> T) async throws -> T {
+        let dbService = await OAuthManager.shared.useCommunicationServices()
+        return try await operation(dbService)
+    }
 }

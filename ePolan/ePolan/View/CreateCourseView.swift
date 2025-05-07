@@ -1,19 +1,20 @@
 //
-//  Day.swift
-//  iosApp
+//  CreateCourseView.swift
+//  ePolan
 //
 //  Created by Michał Lisicki on 28/04/2025.
 //  Copyright © 2025 orgName. All rights reserved.
 //
 
 import SwiftUI
-import Shared
+@preconcurrency import Shared
 
 import UserNotifications
 
 struct CreateCourseView: View {
-    @Binding var courses: Array<CourseDto>?
+    @Binding var courses: Array<CourseDto>
     
+
     @State private var name = ""
     @State private var instructorEmail = ""
     @State private var selectedDays = Set<String>()
@@ -24,7 +25,7 @@ struct CreateCourseView: View {
     @State private var endDate: Date = Date().addingTimeInterval(60 * 60 * 24 * 7)
     @State private var calendarWeekdaySymbols = Calendar.autoupdatingCurrent.shortWeekdaySymbols
     @State private var repeatInterval = 1
-    
+        
     var isFormValid: Bool {
         !name.isEmpty && !instructorEmail.isEmpty && !selectedDays.isEmpty && startDate < endDate && EmailHelper.isEmailValid(instructorEmail)
     }
@@ -76,11 +77,10 @@ struct CreateCourseView: View {
             // MARK: - Invite Students
             Section(header: Text("Invite")) {
                 TextField("Enter instructor email", text: $instructorEmail)
+                    .keyboardType(.emailAddress)
                 HStack {
                     TextField("Enter student email", text: $emailInput)
                         .keyboardType(.emailAddress)
-                        .autocapitalization(.none)
-                    
                     Button("Add") {
                         emails.append(EmailHelper.trimCharacters(emailInput))
                         emailInput = ""
@@ -90,57 +90,55 @@ struct CreateCourseView: View {
                 List {
                     ForEach(emails, id: \.self) { email in
                         Text(email)
-                            .swipeActions {
-                                Button("Delete", role: .destructive) {
-                                    emails.removeAll { $0 == email }
-                                }
-                                .tint(.red)
-                            }
+                    }.onDelete { indicies in
+                        emails.remove(atOffsets: indicies)
                     }
                 }
             }
         }
         .toolbar {
             // MARK: - Done Button
-            Button("Done") {
-                Task {
-                    do {
-                        
-                        let newCourse =  try await dbQuery {
-                            try await $0.createCourse(
-                            name: name,
-                            instructor: instructorEmail,
-                            swiftShortSymbols: selectedDays,
-                            students: Set(emails),
-                            startDateISO: startDate.ISO8601Format(),
-                            endDateISO: endDate.ISO8601Format(),
-                            frequency: Int32(repeatInterval)
-                        )
-                        }
-                        
-                        
-                        
-                        await withThrowingTaskGroup { group in
-                            for email in emails {
-                                group.addTask {
-                                    try await dbQuery { try await $0.addStudent(courseId: newCourse.id,email: EmailHelper.trimCharacters(email)) }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") {
+                    Task {
+                        do {
+                            
+                            let newCourse =  try await dbQuery {
+                                try await $0.createCourse(
+                                    name: name,
+                                    instructor: instructorEmail,
+                                    swiftShortSymbols: selectedDays,
+                                    students: Set(emails),
+                                    startDateISO: startDate.ISO8601Format(),
+                                    endDateISO: endDate.ISO8601Format(),
+                                    frequency: Int32(repeatInterval)
+                                )
+                            }
+                            
+                            
+                            
+                            await withThrowingTaskGroup { group in
+                                for email in emails {
+                                    group.addTask {
+                                        try await dbQuery { try await $0.addStudent(courseId: newCourse.id,email: EmailHelper.trimCharacters(email)) }
+                                    }
                                 }
                             }
+                            
+                            
+                            //TODO: - Push notifications
+                            //NotificationCentre.scheduleCourseNotification(startDate: startDate, endDate: endDate, courseName: name, weekDay: selectedDays)
+                            
+                            courses = courses + [newCourse]
+                            dismiss()
+                        } catch {
+                            log.error("\(error)")
+                            showingAlert = true
                         }
-                        
-                        
-                        //TODO: - Push notifications
-                        //NotificationCentre.scheduleCourseNotification(startDate: startDate, endDate: endDate, courseName: name, weekDay: selectedDays)
-                        
-                        courses = (courses ?? []) + [newCourse]
-                        dismiss()
-                    } catch {
-                        log.error("\(error)")
-                        showingAlert = true
                     }
                 }
+                .disabled(!isFormValid)
             }
-            .disabled(!isFormValid)
             
         }
         .navigationTitle("Create Course")

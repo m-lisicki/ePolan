@@ -1,19 +1,19 @@
 //
 //  TasksDetailView.swift
-//  iosApp
+//  ePolan
 //
 //  Created by Michał Lisicki on 27/04/2025.
 //  Copyright © 2025 orgName. All rights reserved.
 //
 
 import SwiftUI
-import Shared
+@preconcurrency import Shared
 
 struct TasksAssignView: View {
     @State private var isEditing: EditMode = .active
     
     let title: String
-    let lesson: LessonDto
+    let lessonId: KotlinUuid
     
     @State var exercises: Array<ExerciseDto>
     @State var declarations: Set<DeclarationDto>?
@@ -50,33 +50,35 @@ struct TasksAssignView: View {
             }
         }
         .toolbar {
-            Button("Save") {
-                let added = selection.subtracting(initialSelection)
-                let removed = initialSelection.subtracting(selection)
-                
-                Task {
-                    await withTaskGroup { group in
-                        for exercise in added {
-                            group.addTask {
-                                await postExerciseDeclaration(exerciseId: exercise.id)
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") {
+                    let added = selection.subtracting(initialSelection)
+                    let removed = initialSelection.subtracting(selection)
+                    
+                    Task {
+                        await withTaskGroup { group in
+                            for exercise in added {
+                                group.addTask {
+                                    await postExerciseDeclaration(exerciseId: exercise.id)
+                                }
                             }
-                        }
-               
-                        for exercise in removed {
-                            if let matchingDeclarations = declarations?.filter({ $0.exercise == exercise && $0.declarationStatus == DeclarationStatus.waiting}) {
-                                for declaration in matchingDeclarations {
-                                    group.addTask {
-                                        await postExerciseUnDeclaration(declarationId: declaration.id)
+                            
+                            for exercise in removed {
+                                if let matchingDeclarations = declarations?.filter({ $0.exercise == exercise && $0.declarationStatus == DeclarationStatus.waiting}) {
+                                    for declaration in matchingDeclarations {
+                                        group.addTask {
+                                            await postExerciseUnDeclaration(declarationId: declaration.id)
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+                    
+                    initialSelection = selection
                 }
-                
-                initialSelection = selection
+                .disabled(initialSelection == selection)
             }
-            .disabled(initialSelection == selection)
         }
         .task {
             //await fetchData()
@@ -97,7 +99,7 @@ struct TasksAssignView: View {
     }
     
     private func fetchData() async {
-        declarations = try? await dbQuery { try await $0.getAllLessonDeclarations(lessonId: lesson.id) }
+        declarations = try? await dbQuery { try await $0.getAllLessonDeclarations(lessonId: lessonId) }
         selection = Set(declarations?.filter { $0.declarationStatus == DeclarationStatus.waiting }.compactMap(\.exercise) ?? [])
         
         initialSelection = selection
@@ -113,7 +115,7 @@ struct TasksAssignView: View {
             savingError = true
             return
         }
-        declarations = try? await dbQuery { try await $0.getAllLessonDeclarations(lessonId: lesson.id) }
+        declarations = try? await dbQuery { try await $0.getAllLessonDeclarations(lessonId: lessonId) }
     }
     
     
@@ -125,6 +127,6 @@ struct TasksAssignView: View {
             savingError = true
             return
         }
-        declarations = try? await dbQuery { try await $0.getAllLessonDeclarations(lessonId: lesson.id) }
+        declarations = try? await dbQuery { try await $0.getAllLessonDeclarations(lessonId: lessonId) }
     }
 }

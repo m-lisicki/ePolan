@@ -1,13 +1,13 @@
 //
 //  TasksManagementView.swift
-//  iosApp
+//  ePolan
 //
 //  Created by Michał Lisicki on 02/05/2025.
 //  Copyright © 2025 orgName. All rights reserved.
 //
 
 import SwiftUI
-import Shared
+@preconcurrency import Shared
 
 struct TasksManagementView: View {
     @State var lesson: LessonDto
@@ -55,8 +55,9 @@ struct TasksManagementView: View {
         }
         .navigationTitle("Manage exercises")
         .toolbar {
-            Button("Save") {
-                    lesson = LessonDto(id: lesson.id, classDate: lesson.classDate, courseName: lesson.courseName, exercises: exercises, lessonStatus: lesson.lessonStatus)
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") {
+                    lesson.exercises = exercises
                     
                     Task {
                         try await dbQuery {
@@ -65,8 +66,9 @@ struct TasksManagementView: View {
                     }
                     refreshController.triggerRefreshExercises()
                     
+                }
+                .disabled(lesson.exercises == exercises)
             }
-            .disabled(lesson.exercises == exercises)
         }
     }
     

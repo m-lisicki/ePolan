@@ -1,13 +1,20 @@
-import SwiftUI
-import Shared
+//
+//  ContentView.swift
+//  ePolan
+//
+//  Created by Michał Lisicki on 27/04/2025.
+//  Copyright © 2025 orgName. All rights reserved.
+//
 
+
+import SwiftUI
 
 struct ContentView: View {
     @Environment(OAuthManager.self) var oauth: OAuthManager
     
     var body: some View {
         VStack {
-            if !OAuthManager.shared.changePleaseGo {
+            if OAuthManager.shared.authState == nil {
                 SignInView()
             } else {
                 BottomBarView()
@@ -16,15 +23,9 @@ struct ContentView: View {
     }
 }
 
-#Preview {
-    NavigationView {
-        ContentView()
-    }
-}
-
 struct BottomBarView: View {
-    @State var accentColor: Color = .accentColor
-    
+    @State var accentColor: Color = .accent
+
     var body: some View {
         TabView {
             CourseView()

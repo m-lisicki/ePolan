@@ -1,13 +1,13 @@
 //
 //  ModifyCourseUsers.swift
-//  iosApp
+//  ePolan
 //
 //  Created by Michał Lisicki on 02/05/2025.
 //  Copyright © 2025 orgName. All rights reserved.
 //
 
 import SwiftUI
-import Shared
+@preconcurrency import Shared
 
 struct ModifyCourseUsers: View {
     let course: CourseDto
@@ -58,6 +58,7 @@ struct ModifyCourseUsers: View {
                     .font(.subheadline)
                     Text(course.courseCode)
                         .font(.caption)
+                        .draggable(course.courseCode)
             }
                 Spacer()
                 Button("Copy") {

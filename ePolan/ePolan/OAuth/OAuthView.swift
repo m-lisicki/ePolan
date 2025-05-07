@@ -1,6 +1,6 @@
 //
 //  OAuthView.swift
-//  iosApp
+//  ePolan
 //
 //  Created by Michał Lisicki on 27/04/2025.
 //  Copyright © 2025 orgName. All rights reserved.
@@ -8,6 +8,11 @@
 
 
 import SwiftUI
+
+#Preview {
+    SignInView()
+        .environment(OAuthManager.shared)
+}
 
 struct SignInView: View {
     @State private var showLogin = false

@@ -1,61 +1,56 @@
 //
-//  PointsView.swift
-//  iosApp
+//  CourseView.swift
+//  ePolan
 //
 //  Created by Michał Lisicki on 27/04/2025.
 //  Copyright © 2025 orgName. All rights reserved.
 //
 
 import SwiftUI
-import Shared
+@preconcurrency import Shared
 
 #Preview {
-    CourseView()
+    CourseView(courses: CourseDto.Companion().getMockData())
+        .environment(NetworkMonitor())
 }
 
 struct CourseView: View {
-    @State var courses: Array<CourseDto>?
-    @State var showAddCode = false
-    @Environment(NetworkMonitor.self) private var networkMonitor
+    @State var courses = Array<CourseDto>()
+    @Environment(CoursesCache.self) var coursesCache
 
+    @State var showAddCode = false
+    @State var showCreate = false
+    @Environment(NetworkMonitor.self) private var networkMonitor
+    
     var body: some View {
         NavigationStack {
             VStack {
-                if let courses = courses {
-                    ZStack {
-                        List(courses, id: \.id) { course in
-                            if !course.isArchived {
-                                NavigationLink(destination: LessonsView(course: course)) {
-                                    Text(course.name)
-                                        .font(.headline)
-                                }
-                                .swipeActions {
-                                    Button("Archive") {
-                                        Task {
-                                            try await dbQuery {
-                                                try await $0.archiveCourse(courseId: course.id)
-                                            }
-                                            await fetchData()
+                ZStack {
+                    List($courses, id: \.id) { $course in
+                        if !course.isArchived {
+                            NavigationLink(destination: LessonsView(course: $course)) {
+                                Text(course.name)
+                                    .font(.headline)
+                            }
+                            .swipeActions {
+                                Button("Archive") {
+                                    Task {
+                                        try await dbQuery {
+                                            try await $0.archiveCourse(courseId: course.id)
                                         }
+                                        await fetchData()
                                     }
                                 }
                             }
-                            
-                        }
-                        .refreshable {
-                            await fetchData()
-                        }
-                        .overlay {
-                            if courses.filter({ $0.isArchived == false }) == [] {
-                                ContentUnavailableView("No courses", systemImage: "compass.drawing")
-                            }
                         }
                     }
-                } else {
-                    VStack {
-                        Image(systemName: "slowmo")
-                            .symbolEffect(.variableColor.iterative.hideInactiveLayers.nonReversing, options: .repeat(.continuous))
-                            .imageScale(.large)
+                    .refreshable {
+                        await fetchData(forceRefresh: true)
+                    }
+                    .overlay {
+                        if courses.filter({ $0.isArchived == false }) == [] {
+                            ContentUnavailableView("No courses", systemImage: "compass.drawing")
+                        }
                     }
                 }
             }
@@ -68,46 +63,73 @@ struct CourseView: View {
                 }
             }
             .toolbar {
-                if let archivedCourses = courses?.filter(\.isArchived), !archivedCourses.isEmpty {
-                    NavigationLink(destination: ArchivedCoursesView(archivedCourses: archivedCourses)) {
-                        Image(systemName: "archivebox")
+                let archivedCourses = courses.filter(\.isArchived)
+                if !archivedCourses.isEmpty {
+                    ToolbarItem {
+                        NavigationLink(destination: ArchivedCoursesView(archivedCourses: archivedCourses)) {
+                            Image(systemName: "archivebox")
+                        }
                     }
                 }
-                Button(action: {
-                    withAnimation {
-                        showAddCode.toggle()
+                ToolbarItem {
+                    Button(action: {
+                        withAnimation {
+                            showAddCode.toggle()
+                        }
+                    }) {
+                        Image(systemName: "person.crop.badge.magnifyingglass.fill")
                     }
-                }) {
-                    Image(systemName: showAddCode ? "xmark" : "person.crop.badge.magnifyingglass.fill").contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer), options: .nonRepeating))
                 }
-                NavigationLink(destination: CreateCourseView(courses: $courses)) {
-                    Image(systemName: "plus")
+                
+                ToolbarItem(placement: .primaryAction) {
+                    Button(action: { withAnimation { showCreate = true } }) {
+                        Image(systemName: "plus")
+                    }
                 }
             }
-        }
-        .task {
-            await fetchData()
-        }
-        .onChange(of: showAddCode) { _, newValue in
-            if !newValue {
+            .task {
+                await fetchData()
+            }
+            .onChange(of: showAddCode) { _, newValue in
+                if !newValue {
+                    Task {
+                        await fetchData()
+                    }
+                }
+            }
+            .onChange(of: networkMonitor.isConnected) {
                 Task {
                     await fetchData()
                 }
             }
-        }
-        .onChange(of: networkMonitor.isConnected) {
-            Task {
-                await fetchData()
+            .sheet(isPresented: $showCreate) {
+                NavigationStack {
+                    CreateCourseView(courses: $courses)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Cancel") {
+                                    showCreate = false
+                                }
+                            }
+                        }
+                }
             }
         }
     }
     
-    private func fetchData() async {
+    private func fetchData(forceRefresh: Bool = false) async {
+        if !forceRefresh, let cachedCourses = coursesCache.loadCachedCourses() {
+            courses = cachedCourses
+            return
+        }
+        
         let setCourses = try? await dbQuery {
             try await $0.getAllCourses()
         }
+        
         if let setCourses = setCourses {
             courses = Array(setCourses).sorted { $0.name < $1.name }
+            coursesCache.addToCache(courses)
         }
     }
 }
@@ -124,6 +146,8 @@ struct JoinCourseView: View {
                     try await dbQuery {
                         try await $0.joinCourse(invitationCode: invitationCode)
                     }
+                }
+                withAnimation {
                     showAddCode = false
                 }
             }
