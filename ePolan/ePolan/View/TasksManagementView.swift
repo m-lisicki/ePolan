@@ -7,7 +7,6 @@
 //
 
 import SwiftUI
-@preconcurrency import Shared
 
 struct TasksManagementView: View {
     @State var lesson: LessonDto
@@ -15,7 +14,7 @@ struct TasksManagementView: View {
     
     @Environment(RefreshController.self) var refreshController
     @Environment(\.dismiss) private var dismiss
-        
+    
     var body: some View {
         VStack {
             if !exercises.isEmpty {
@@ -28,7 +27,7 @@ struct TasksManagementView: View {
                         
                         if siblings.count == 1 || sortedSiblings.last?.id == exercise.id {
                             HStack {
-                                let isOnlyBaseLast = siblings.count == 1 && exercise.exerciseNumber == (exercises.map { $0.exerciseNumber }.max() ?? Int32.min)
+                                let isOnlyBaseLast = siblings.count == 1 && exercise.exerciseNumber == (exercises.map { $0.exerciseNumber }.max() ?? Int.min)
                                 if siblings.count > 1 || isOnlyBaseLast {
                                     Button { removeExercise(for: exercise)} label: {
                                         Image(systemName: "minus.diamond.fill")
@@ -60,9 +59,7 @@ struct TasksManagementView: View {
                     lesson.exercises = exercises
                     
                     Task {
-                        try await dbQuery {
-                            try await $0.postExercises(lesson: lesson)
-                        }
+                        try await DBQuery.postExercises(lesson: lesson)
                     }
                     refreshController.triggerRefreshExercises()
                     
@@ -74,7 +71,7 @@ struct TasksManagementView: View {
     
     private func addExercise() {
         let index = (exercises.map(\.exerciseNumber).max() ?? 0) + 1
-        exercises = exercises.union([ExerciseDto(classDate: lesson.classDate, groupName: lesson.courseName, exerciseNumber: Int32(index), subpoint: nil)])
+        exercises = exercises.union([ExerciseDto(classDate: lesson.classDate, groupName: lesson.courseName, exerciseNumber: index, subpoint: nil)])
     }
     
     private func addSubpoint(to exercise: ExerciseDto) {
@@ -84,7 +81,7 @@ struct TasksManagementView: View {
         
         if exercise.subpoint == nil {
             // First subpoint (creating a and b at once)
-            let first = exercise
+            var first = exercise
             set.remove(first)
             first.subpoint = "a"
             set.insert(first)
@@ -98,14 +95,14 @@ struct TasksManagementView: View {
         
         if let last = sortedSiblings.last, let lastSubpoint = last.subpoint {
             var nextSubpoint: String?
-
+            
             if let ascii = lastSubpoint.unicodeScalars.first?.value, ascii < 122 {
                 nextSubpoint = String(Character(UnicodeScalar(ascii + 1)!))
             } else if lastSubpoint.starts(with: "z") {
                 let apostropheCount = lastSubpoint.dropFirst().filter { $0 == "'" }.count
                 nextSubpoint = "z" + String(repeating: "'", count: apostropheCount + 1)
             }
-
+            
             if let nextSubpoint {
                 let next = ExerciseDto(
                     classDate: exercise.classDate,
@@ -119,7 +116,7 @@ struct TasksManagementView: View {
         
         exercises = set
     }
-        
+    
     
     
     private func removeExercise(for exercise: ExerciseDto) {
@@ -130,7 +127,7 @@ struct TasksManagementView: View {
         let siblings = set.filter { $0.exerciseNumber == exercise.exerciseNumber }
         
         // Last subpoints - converting back to exercise without subpoint
-        if siblings.count == 1, let second = siblings.first, second.subpoint != nil {
+        if siblings.count == 1, var second = siblings.first, second.subpoint != nil {
             set.remove(second)
             second.subpoint = nil
             set.insert(second)

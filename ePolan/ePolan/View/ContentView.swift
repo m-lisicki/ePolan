@@ -9,23 +9,34 @@
 
 import SwiftUI
 
+#Preview {
+    BottomBarView()
+        .environment(OAuthManager.shared)
+        .environment(NetworkMonitor())
+        .environment(RefreshController())
+}
+
 struct ContentView: View {
     @Environment(OAuthManager.self) var oauth: OAuthManager
     
     var body: some View {
         VStack {
-            if OAuthManager.shared.authState == nil {
+#if !targetEnvironment(simulator)
+            if oauth.authState == nil {
                 SignInView()
             } else {
                 BottomBarView()
             }
+#else
+            BottomBarView()
+#endif
         }
     }
 }
 
 struct BottomBarView: View {
     @State var accentColor: Color = .accent
-
+    
     var body: some View {
         TabView {
             CourseView()

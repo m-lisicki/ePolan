@@ -7,9 +7,8 @@
 //
 
 import SwiftUI
-@preconcurrency import Shared
 
-struct ModifyCourseUsers: View {
+struct CourseUsers: View {
     let course: CourseDto
     
     @State var users: Array<String> = []
@@ -19,7 +18,7 @@ struct ModifyCourseUsers: View {
     var currentUser: String {
         OAuthManager.shared.email ?? ""
     }
-        
+    
     var body: some View {
         VStack {
             List(users, id: \.self) { user in
@@ -53,17 +52,17 @@ struct ModifyCourseUsers: View {
                 .padding()
             }
             HStack {
-            VStack(alignment: .leading) {
-                Text("Invitation code:")
-                    .font(.subheadline)
+                VStack(alignment: .leading) {
+                    Text("Invitation code:")
+                        .font(.subheadline)
                     Text(course.courseCode)
                         .font(.caption)
                         .draggable(course.courseCode)
-            }
+                }
                 Spacer()
                 Button("Copy") {
                     UIPasteboard.general.string = course.courseCode
-            }
+                }
                 .buttonStyle(.borderedProminent)
             }
             .padding()
@@ -71,12 +70,7 @@ struct ModifyCourseUsers: View {
         .navigationTitle("Course users")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            let userSet = try? await dbQuery {
-                try? await $0.getAllStudents(courseId: course.id)
-            }
-                if let userSet = userSet {
-                    users = Array(userSet).sorted { $0 < $1 }
-                }
+            await fetchData()
             
         }
         .alert(isPresented: $showingAlert) {
@@ -88,24 +82,26 @@ struct ModifyCourseUsers: View {
         }
     }
     
+    func fetchData() async {
+#if !targetEnvironment(simulator)
+        let userSet = try? await DBQuery.getAllStudents(courseId: course.id)
+        if let userSet = userSet {
+            users = Array(userSet).sorted { $0 < $1 }
+        }
+#else
+        users = ["Dr. Strangelove", "David Bowie", "Witkacy"]
+#endif
+    }
+    
     func addUser(email: String) async {
-        let status = try? await dbQuery { try await $0.addStudent(courseId: course.id, email: email) }
-            if status != 200 {
-                showingAlert = true
-                return
-            }
-            self.users.append(email)
-            self.email = ""
+        try? await DBQuery.addStudent(courseId: course.id, email: email)
         
+        self.users.append(email)
+        self.email = ""
     }
     
     func removeUser(email: String) async {
-        let status = try? await dbQuery { try await $0.removeStudent(courseId: course.id, email: email) }
-            if status != 200 {
-                showingAlert = true
-                return
-            }
-            self.users.removeAll { $0 == email }
-        
+        try? await DBQuery.removeStudent(courseId: course.id, email: email)
+        self.users.removeAll { $0 == email }
     }
 }

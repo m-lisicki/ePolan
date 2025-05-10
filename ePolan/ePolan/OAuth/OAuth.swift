@@ -8,17 +8,28 @@
 
 import SwiftUI
 import AppAuth
-@preconcurrency import Shared
-
-let ipAddress = "192.168.254.134"
 
 @Observable
 @MainActor
-final class OAuthManager {
+final class OAuthManager: NSObject, OIDAuthStateChangeDelegate {
     @MainActor static let shared = OAuthManager()
-    private init() {}
     
-    var authState: OIDAuthState?
+    private override init() {
+        super.init()
+        restoreAuthState()
+    }
+    
+    private let keychainKey = "OIDAuthState"
+    
+    var authState: OIDAuthState? {
+        didSet {
+            authState?.stateChangeDelegate = self
+            Task {
+                await saveAuthState()
+            }
+        }
+    }
+    
     private var currentAuthorizationFlow: OIDExternalUserAgentSession?
     
     let clientID = "ClassMatcher"
@@ -27,18 +38,48 @@ final class OAuthManager {
     
     var email: String?
     
-    func useCommunicationServices() async -> DBCommunicationServices {
-        let freshToken = await returnFreshToken()
-        return DBCommunicationServices(token: freshToken)
-    }
-        
     let configuration = OIDServiceConfiguration(
-        authorizationEndpoint: URL(string: "http://\(ipAddress):8280/realms/Users/protocol/openid-connect/auth")!,
-        tokenEndpoint: URL(string: "http://\(ipAddress):8280/realms/Users/protocol/openid-connect/token")!,
-        issuer: URL(string: "http://\(ipAddress):8280/realms/Users")!,
+        authorizationEndpoint: URL(string: "http://\(NetworkConstants.ip):8280/realms/Users/protocol/openid-connect/auth")!,
+        tokenEndpoint: URL(string: "http://\(NetworkConstants.ip):8280/realms/Users/protocol/openid-connect/token")!,
+        issuer: URL(string: "http://\(NetworkConstants.ip):8280/realms/Users")!,
         registrationEndpoint: nil,
-        endSessionEndpoint: URL(string: "http://\(ipAddress):8280/realms/Users/protocol/openid-connect/logout")!
+        endSessionEndpoint: URL(string: "http://\(NetworkConstants.ip):8280/realms/Users/protocol/openid-connect/logout")!
     )
+    
+    // MARK: – Persistence
+    
+    private func saveAuthState() async {
+        guard let state = authState else {
+            try? KeychainHelper.shared.delete(key: keychainKey)
+            return
+        }
+        do {
+            let data = try NSKeyedArchiver.archivedData(withRootObject: state, requiringSecureCoding: true)
+            try KeychainHelper.shared.save(data, for: keychainKey)
+        } catch {
+            log.error("Keychain save failed: \(error)")
+        }
+    }
+    
+    private func restoreAuthState() {
+        guard let data = KeychainHelper.shared.load(key: keychainKey), let state = try? NSKeyedUnarchiver.unarchivedObject(ofClass: OIDAuthState.self, from: data)
+        else { return }
+        
+        self.authState = state
+        
+        Task {
+            self.email = try await DBQuery.getUserEmail()
+        }
+    }
+    
+    // MARK: - OIDAuthStateChangeDelegate Methods
+    
+    nonisolated func didChange(_ state: OIDAuthState) {
+        log.info("OIDAuthState did change. Persisting updated state to Keychain...")
+        Task {
+            await saveAuthState()
+        }
+    }
     
     // MARK: - Ensure Fresh Tokens
     func returnFreshToken() async -> String {
@@ -55,6 +96,8 @@ final class OAuthManager {
     
     // MARK: — START FLOW
     func authorize() {
+        guard authState == nil else { return }
+        
         let request = OIDAuthorizationRequest(configuration: configuration,
                                               clientId: clientID,
                                               clientSecret: clientSecret,
@@ -77,21 +120,19 @@ final class OAuthManager {
             byPresenting: request,
             externalUserAgent: externalAgent!
         ) { @MainActor [weak self] state, error in
-                if let error = error {
-                    log.error("Authorization error: \(error.localizedDescription)")
-                } else if let state = state {
-                    self?.authState = state
-                    Task {
-                        let dbService = await OAuthManager.shared.useCommunicationServices()
-                        self?.email = try await dbService.getUserEmail()
-                    }
-                } else {
-                    log.error("Unknown authorization error")
+            if let error = error {
+                log.error("Authorization error: \(error.localizedDescription)")
+            } else if let state = state {
+                self?.authState = state
+                Task {
+                    self?.email = try await DBQuery.getUserEmail()
                 }
+            } else {
+                log.error("Unknown authorization error")
+            }
             
         }
     }
-    
     
     func logout() {
         guard let idToken = authState?.lastTokenResponse?.idToken else {
@@ -118,25 +159,108 @@ final class OAuthManager {
             endSessionRequest,
             externalUserAgent: externalAgent!
         ) { @MainActor [weak self] response, error in
-                if let error = error {
-                    log.error("Logout error: \(error.localizedDescription)")
-                } else {
-                    log.info("Logged out successfully")
-                    self?.authState = nil
-                    self?.email = nil
-                }
+            if let error = error {
+                log.error("Logout error: \(error.localizedDescription)")
+            } else {
+                log.info("Logged out successfully")
+                self?.authState = nil
+                self?.email = nil
+            }
         }
     }
     
     func isAuthorised(user: String) -> Bool {
-       user == self.email ?? ""
+        user == self.email ?? ""
     }
 }
 
 extension View {
     @discardableResult
-    func dbQuery<T: Sendable>(_ operation: (DBCommunicationServices) async throws -> T) async throws -> T {
-        let dbService = await OAuthManager.shared.useCommunicationServices()
-        return try await operation(dbService)
+    func dbQuery<T: Sendable>(_ operation: (DBQuery) async throws -> T) async throws -> T {
+        return try await operation(DBQuery())
+    }
+}
+
+import Security
+
+@MainActor
+final class KeychainHelper {
+    static let shared = KeychainHelper()
+    
+    private let service: String
+    private let accessibilityOption = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+    
+    private init(service: String = "com.baklava.oauth") {
+        self.service = service
+    }
+    
+    func save(_ data: Data, for key: String) throws {
+        let attributesToSet: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: accessibilityOption
+        ]
+        
+        var addQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key
+        ]
+        addQuery.merge(attributesToSet) { (_, new) in new }
+        
+        var status = SecItemAdd(addQuery as CFDictionary, nil)
+        
+        // If duplicate found - update
+        if status == errSecDuplicateItem {
+            let searchQuery: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: key
+            ]
+            
+            status = SecItemUpdate(searchQuery as CFDictionary, attributesToSet as CFDictionary)
+        }
+        
+        guard status == errSecSuccess else {
+            // TODO: - THROW
+            return
+        }
+    }
+    
+    func load(key: String) -> Data? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        
+        guard status == errSecSuccess else {
+            return nil
+        }
+        
+        guard let data = item as? Data else {
+            return nil
+        }
+        
+        return data
+    }
+    
+    func delete(key: String) throws {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key
+        ]
+        
+        let status = SecItemDelete(query as CFDictionary)
+        
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            // TODO: - THROW
+            return
+        }
     }
 }

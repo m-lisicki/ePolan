@@ -7,14 +7,13 @@
 //
 
 import SwiftUI
-@preconcurrency import Shared
 
 import UserNotifications
 
 struct CreateCourseView: View {
     @Binding var courses: Array<CourseDto>
     
-
+    
     @State private var name = ""
     @State private var instructorEmail = ""
     @State private var selectedDays = Set<String>()
@@ -25,7 +24,7 @@ struct CreateCourseView: View {
     @State private var endDate: Date = Date().addingTimeInterval(60 * 60 * 24 * 7)
     @State private var calendarWeekdaySymbols = Calendar.autoupdatingCurrent.shortWeekdaySymbols
     @State private var repeatInterval = 1
-        
+    
     var isFormValid: Bool {
         !name.isEmpty && !instructorEmail.isEmpty && !selectedDays.isEmpty && startDate < endDate && EmailHelper.isEmailValid(instructorEmail)
     }
@@ -103,24 +102,23 @@ struct CreateCourseView: View {
                     Task {
                         do {
                             
-                            let newCourse =  try await dbQuery {
-                                try await $0.createCourse(
-                                    name: name,
-                                    instructor: instructorEmail,
-                                    swiftShortSymbols: selectedDays,
-                                    students: Set(emails),
-                                    startDateISO: startDate.ISO8601Format(),
-                                    endDateISO: endDate.ISO8601Format(),
-                                    frequency: Int32(repeatInterval)
-                                )
-                            }
+                            let newCourse =  try await DBQuery.createCourse(
+                                name: name,
+                                instructor: instructorEmail,
+                                swiftShortSymbols: selectedDays,
+                                students: Set(emails),
+                                startDateISO: startDate.ISO8601Format(),
+                                endDateISO: endDate.ISO8601Format(),
+                                frequency: repeatInterval
+                            )
+                            
                             
                             
                             
                             await withThrowingTaskGroup { group in
                                 for email in emails {
                                     group.addTask {
-                                        try await dbQuery { try await $0.addStudent(courseId: newCourse.id,email: EmailHelper.trimCharacters(email)) }
+                                        try await DBQuery.addStudent(courseId: newCourse.id,email: EmailHelper.trimCharacters(email))
                                     }
                                 }
                             }

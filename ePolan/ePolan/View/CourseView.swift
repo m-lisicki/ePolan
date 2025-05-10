@@ -7,17 +7,16 @@
 //
 
 import SwiftUI
-@preconcurrency import Shared
 
 #Preview {
-    CourseView(courses: CourseDto.Companion().getMockData())
+    CourseView()
         .environment(NetworkMonitor())
+        .environment(RefreshController())
 }
 
 struct CourseView: View {
     @State var courses = Array<CourseDto>()
-    @Environment(CoursesCache.self) var coursesCache
-
+    
     @State var showAddCode = false
     @State var showCreate = false
     @Environment(NetworkMonitor.self) private var networkMonitor
@@ -28,16 +27,14 @@ struct CourseView: View {
                 ZStack {
                     List($courses, id: \.id) { $course in
                         if !course.isArchived {
-                            NavigationLink(destination: LessonsView(course: $course)) {
+                            NavigationLink(destination: LessonsView(course: course)) {
                                 Text(course.name)
                                     .font(.headline)
                             }
                             .swipeActions {
                                 Button("Archive") {
                                     Task {
-                                        try await dbQuery {
-                                            try await $0.archiveCourse(courseId: course.id)
-                                        }
+                                        try await DBQuery.archiveCourse(courseId: course.id)
                                         await fetchData()
                                     }
                                 }
@@ -77,18 +74,22 @@ struct CourseView: View {
                             showAddCode.toggle()
                         }
                     }) {
-                        Image(systemName: "person.crop.badge.magnifyingglass.fill")
+                        Image(systemName: "person.2.badge.plus")
                     }
                 }
                 
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: { withAnimation { showCreate = true } }) {
-                        Image(systemName: "plus")
+                        Image(systemName: "plus.rectangle.on.rectangle")
                     }
                 }
             }
             .task {
+#if !targetEnvironment(simulator)
                 await fetchData()
+#else
+                courses = CourseDto.getMockData()
+#endif
             }
             .onChange(of: showAddCode) { _, newValue in
                 if !newValue {
@@ -118,18 +119,11 @@ struct CourseView: View {
     }
     
     private func fetchData(forceRefresh: Bool = false) async {
-        if !forceRefresh, let cachedCourses = coursesCache.loadCachedCourses() {
-            courses = cachedCourses
-            return
-        }
+        let setCourses = try? await DBQuery.getAllCourses(forceRefresh: forceRefresh)
         
-        let setCourses = try? await dbQuery {
-            try await $0.getAllCourses()
-        }
         
         if let setCourses = setCourses {
             courses = Array(setCourses).sorted { $0.name < $1.name }
-            coursesCache.addToCache(courses)
         }
     }
 }
@@ -143,9 +137,7 @@ struct JoinCourseView: View {
             TextField("Enter invitation code", text: $invitationCode)
             Button("Join") {
                 Task {
-                    try await dbQuery {
-                        try await $0.joinCourse(invitationCode: invitationCode)
-                    }
+                    try await DBQuery.joinCourse(invitationCode: invitationCode)
                 }
                 withAnimation {
                     showAddCode = false

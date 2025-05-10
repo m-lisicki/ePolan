@@ -7,13 +7,12 @@
 //
 
 import SwiftUI
-@preconcurrency import Shared
 
 struct TasksAssignView: View {
     @State private var isEditing: EditMode = .active
     
     let title: String
-    let lessonId: KotlinUuid
+    let lessonId: UUID
     
     @State var exercises: Array<ExerciseDto>
     @State var declarations: Set<DeclarationDto>?
@@ -26,7 +25,7 @@ struct TasksAssignView: View {
     @Environment(\.dismiss) private var dismiss
     
     @Environment(NetworkMonitor.self) private var networkMonitor
-
+    
     var body: some View {
         VStack {
             if declarations != nil {
@@ -64,7 +63,7 @@ struct TasksAssignView: View {
                             }
                             
                             for exercise in removed {
-                                if let matchingDeclarations = declarations?.filter({ $0.exercise == exercise && $0.declarationStatus == DeclarationStatus.waiting}) {
+                                if let matchingDeclarations = declarations?.filter({ $0.exercise == exercise && $0.declarationStatus == .waiting}) {
                                     for declaration in matchingDeclarations {
                                         group.addTask {
                                             await postExerciseUnDeclaration(declarationId: declaration.id)
@@ -76,16 +75,18 @@ struct TasksAssignView: View {
                     }
                     
                     initialSelection = selection
+                    
+                    dismiss()
                 }
                 .disabled(initialSelection == selection)
             }
         }
         .task {
-            //await fetchData()
+            await fetchData()
         }
         .onChange(of: networkMonitor.isConnected) {
             Task {
-                //await fetchData()
+                await fetchData()
             }
         }
         .alert(isPresented: $savingError) {
@@ -99,34 +100,26 @@ struct TasksAssignView: View {
     }
     
     private func fetchData() async {
-        declarations = try? await dbQuery { try await $0.getAllLessonDeclarations(lessonId: lessonId) }
-        selection = Set(declarations?.filter { $0.declarationStatus == DeclarationStatus.waiting }.compactMap(\.exercise) ?? [])
+#if !targetEnvironment(simulator)
+        declarations = try? await DBQuery.getAllLessonDeclarations(lessonId: lessonId)
+#else
+        declarations = Set(DeclarationDto.getMockData())
+#endif
+        selection = Set(declarations?.filter { $0.declarationStatus == .waiting }.compactMap(\.exercise) ?? [])
         
         initialSelection = selection
     }
     
-    private func postExerciseUnDeclaration(declarationId: KotlinUuid) async {
-        let result = try? await dbQuery {
-            try await $0.postUnDeclaration(declarationId: declarationId)
-        }
-        if result == 200 {
-            savingError = false
-        } else {
-            savingError = true
-            return
-        }
-        declarations = try? await dbQuery { try await $0.getAllLessonDeclarations(lessonId: lessonId) }
+    private func postExerciseUnDeclaration(declarationId: UUID) async {
+        try? await DBQuery.postUnDeclaration(declarationId: declarationId)
+        
+        declarations = try? await DBQuery.getAllLessonDeclarations(lessonId: lessonId)
     }
     
     
-    private func postExerciseDeclaration(exerciseId: KotlinUuid) async {
-        let result = try? await dbQuery { try await $0.postDeclaration(exerciseId: exerciseId) }
-        if result == 200 {
-            savingError = false
-        } else {
-            savingError = true
-            return
-        }
-        declarations = try? await dbQuery { try await $0.getAllLessonDeclarations(lessonId: lessonId) }
+    private func postExerciseDeclaration(exerciseId: UUID) async {
+        try? await DBQuery.postDeclaration(exerciseId: exerciseId)
+        
+        declarations = try? await DBQuery.getAllLessonDeclarations(lessonId: lessonId)
     }
 }

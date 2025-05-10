@@ -7,45 +7,57 @@
 //
 
 import SwiftUI
-@preconcurrency import Shared
 import Combine
+import ConfettiSwiftUI
+
+#Preview {
+    TasksAssignedView(title: "Get Back!", lesson: LessonDto.getMockData().first!, activity: 0.0)
+        .environment(OAuthManager.shared)
+        .environment(NetworkMonitor())
+        .environment(RefreshController())
+}
 
 struct TasksAssignedView: View {
     let title: String
-    let lessonId: KotlinUuid
-    @State var exercises: Array<ExerciseDto>
+    let lesson: LessonDto
     @State var declarations = Set<DeclarationDto>()
     @State var activity: Double
     
     @State var activityTask: Task<Void, Never>?
     @State var savingError = false
     
-    @Environment(DeclarationsCache.self) var declarationsCache
+    @State var confetti = false
     
     @Environment(RefreshController.self) var refreshController
     
     @Environment(NetworkMonitor.self) private var networkMonitor
-
+    
     var body: some View {
         VStack {
-                    List(exercises, id: \.id) { exercise in
-                        HStack {
-                            Text("\(exercise.exerciseNumber)\(exercise.subpoint ?? "").")
-                            Spacer()
-                            Text(declarations.contains(where: { $0.exercise == exercise && $0.declarationStatus == DeclarationStatus.approved }) ? "Assigned 🎉" : "Not assigned")
-                        }
-                    }
-                    .refreshable {
-                        await fetchData()
-                    }.overlay {
-                        if exercises.isEmpty {
-                            ContentUnavailableView("No exercises", systemImage: "pencil.and.list.clipboard")
-                        } else if declarations.isEmpty {
-                            ContentUnavailableView("No declarations", systemImage: "person.fill")
-                        }
-                    }
+            List(lesson.exercises.sortedByNumber(), id: \.id) { exercise in
+                HStack {
+                    Text("\(exercise.exerciseNumber)\(exercise.subpoint ?? "").")
+                    Spacer()
+                    Text(declarations.contains(where: { $0.exercise == exercise && $0.declarationStatus == .approved }) ? "Assigned 🎉" : "Not assigned")
+                }
+            }
+            .refreshable {
+                await fetchData()
+            }.overlay {
+                if lesson.exercises.isEmpty {
+                    ContentUnavailableView("No exercises", systemImage: "pencil.and.list.clipboard")
+                } else if declarations.isEmpty {
+                    ContentUnavailableView("No declarations", systemImage: "person.fill")
+                }
+            }
+            .confettiCannon(trigger: $confetti)
             Stepper("Points: \(String(format: "%.2f", activity))", value: Binding<Double>(get:{self.activity},set:{self.activity = $0}), in: 0...5, step: 0.5)
                 .padding()
+        }
+        .onChange(of: declarations) {
+            if declarations.first(where: { $0.declarationStatus == .approved }) != nil {
+                confetti.toggle()
+            }
         }
         .onChange(of: activity) { oldValue, newValue in
             activityTask?.cancel()
@@ -55,9 +67,7 @@ struct TasksAssignedView: View {
                 if Task.isCancelled { return }
                 
                 do {
-                    try await dbQuery {
-                        try await $0.addPoints(lessonId: lessonId, activityValue: newValue)
-                    }
+                    try await DBQuery.addPoints(lessonId: lesson.id, activityValue: newValue)
                     refreshController.refreshSignalActivity.send()
                 } catch {
                     savingError = true
@@ -84,15 +94,13 @@ struct TasksAssignedView: View {
     }
     
     private func fetchData(forceRefresh: Bool = false) async {
-        if !forceRefresh, let declarationsCache = declarationsCache.loadCachedDeclarations(id: lessonId) {
-            declarations = declarationsCache
-            return
-        }
-        
-        let declarations = try? await dbQuery { try await $0.getAllLessonDeclarations(lessonId: lessonId) }
+#if !targetEnvironment(simulator)
+        let declarations = try? await DBQuery.getAllLessonDeclarations(lessonId: lesson.id, forceRefresh: forceRefresh)
         if let declarations = declarations {
             self.declarations = declarations
-            declarationsCache.addDeclarationsToCache(id: lessonId, declarations)
         }
+#else
+        declarations = Set(DeclarationDto.getMockData())
+#endif
     }
 }

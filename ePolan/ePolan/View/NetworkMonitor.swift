@@ -17,7 +17,7 @@ final class NetworkMonitor: Sendable {
     
     @MainActor
     var isConnected = false
-
+    
     init() {
         networkMonitor.pathUpdateHandler = { [weak self] path in
             Task { @MainActor in
