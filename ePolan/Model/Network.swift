@@ -12,7 +12,11 @@ import Foundation
 // MARK: - Constants
 
 struct NetworkConstants {
+    #if targetEnvironment(simulator)
     static let ip = "localhost"
+    #else
+    static let ip = "192.168.254.134"
+    #endif
     static let baseUrl = "http://\(ip):8080"
     static let keycloakUrl = "http://\(ip):8280"
 }

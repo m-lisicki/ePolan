@@ -127,7 +127,6 @@ struct CourseDto: Identifiable, Codable, Hashable, Sendable {
     let startDate: Date
     let endDate: Date
     let frequency: Int
-    let isArchived: Bool
     let courseCode: String
     
     static func getMockData() -> [CourseDto] {
@@ -146,7 +145,6 @@ struct CourseDto: Identifiable, Codable, Hashable, Sendable {
                 startDate: now,
                 endDate: thirtyDaysLater,
                 frequency: 2,
-                isArchived: false,
                 courseCode: Array(repeating: "101", count: 7).joined(separator: "-")
             ),
             .init(
@@ -158,7 +156,6 @@ struct CourseDto: Identifiable, Codable, Hashable, Sendable {
                 startDate: now,
                 endDate: thirtyDaysLater,
                 frequency: 1,
-                isArchived: false,
                 courseCode: "BOWIE102"
             )
         ]

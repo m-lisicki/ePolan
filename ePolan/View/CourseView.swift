@@ -26,26 +26,26 @@ struct CourseView: View {
             VStack {
                 ZStack {
                     List($courses, id: \.id) { $course in
-                        if !course.isArchived {
+//                        if !course.isArchived {
                             NavigationLink(destination: LessonsView(course: course)) {
                                 Text(course.name)
                                     .font(.headline)
                             }
                             .swipeActions {
-                                Button("Archive") {
-                                    Task {
-                                        try await DBQuery.archiveCourse(courseId: course.id)
-                                        await fetchData()
-                                    }
-                                }
+//                                Button("Archive") {
+//                                    Task {
+//                                        try await DBQuery.archiveCourse(courseId: course.id)
+//                                        await fetchData()
+//                                    }
+//                                }
                             }
-                        }
+//                        }
                     }
                     .refreshable {
                         await fetchData(forceRefresh: true)
                     }
                     .overlay {
-                        if courses.filter({ $0.isArchived == false }) == [] {
+                        if courses.isEmpty {
                             ContentUnavailableView("No courses", systemImage: "compass.drawing")
                         }
                     }
@@ -60,14 +60,14 @@ struct CourseView: View {
                 }
             }
             .toolbar {
-                let archivedCourses = courses.filter(\.isArchived)
-                if !archivedCourses.isEmpty {
-                    ToolbarItem {
-                        NavigationLink(destination: ArchivedCoursesView(archivedCourses: archivedCourses)) {
-                            Image(systemName: "archivebox")
-                        }
-                    }
-                }
+//                let archivedCourses = courses.filter(\.isArchived)
+//                if !archivedCourses.isEmpty {
+//                    ToolbarItem {
+//                        NavigationLink(destination: ArchivedCoursesView(archivedCourses: archivedCourses)) {
+//                            Image(systemName: "archivebox")
+//                        }
+//                    }
+//                }
                 ToolbarItem {
                     Button(action: {
                         withAnimation {
