@@ -76,12 +76,14 @@ struct CourseView: View {
                     }) {
                         Image(systemName: "person.2.badge.plus")
                     }
+                    .accessibilityLabel("Join course")
                 }
                 
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: { withAnimation { showCreate = true } }) {
                         Image(systemName: "plus.rectangle.on.rectangle")
                     }
+                    .accessibilityLabel("Add new course")
                 }
             }
             .task {
@@ -106,6 +108,7 @@ struct CourseView: View {
             .sheet(isPresented: $showCreate) {
                 NavigationStack {
                     CreateCourseView(courses: $courses)
+                        .presentationSizing(.form)
                         .toolbar {
                             ToolbarItem(placement: .cancellationAction) {
                                 Button("Cancel") {

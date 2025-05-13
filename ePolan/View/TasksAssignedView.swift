@@ -32,6 +32,8 @@ struct TasksAssignedView: View {
     
     @Environment(NetworkMonitor.self) private var networkMonitor
     
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
+    
     var body: some View {
         VStack {
             List(lesson.exercises.sortedByNumber(), id: \.id) { exercise in
@@ -51,11 +53,15 @@ struct TasksAssignedView: View {
                 }
             }
             .confettiCannon(trigger: $confetti)
-            Stepper("Points: \(String(format: "%.2f", activity))", value: Binding<Double>(get:{self.activity},set:{self.activity = $0}), in: 0...5, step: 0.5)
+            Stepper(value: Binding<Double>(get:{self.activity},set:{self.activity = $0}), in: 0...5, step: 0.5) {
+                Text("Points: \(String(format: "%.1f", activity))")
+                    .accessibilityLabel("Points selector")
+            }
+            .accessibilityValue("\(String(format: "%.1f", activity)) points")
                 .padding()
         }
         .onChange(of: declarations) {
-            if declarations.first(where: { $0.declarationStatus == .approved }) != nil {
+            if declarations.first(where: { $0.declarationStatus == .approved }) != nil && !reduceMotion {
                 confetti.toggle()
             }
         }
@@ -91,6 +97,7 @@ struct TasksAssignedView: View {
             }
         }
         .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
     }
     
     private func fetchData(forceRefresh: Bool = false) async {

@@ -7,7 +7,6 @@
 //
 
 import SwiftUI
-import MessageUI
 
 #Preview {
     @Previewable @State var accentColor: Color = .accent

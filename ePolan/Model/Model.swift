@@ -103,10 +103,15 @@ struct LessonDto: Identifiable, Codable, Hashable, Sendable {
         let now = Date()
         let exercises = ExerciseDto.getMockData()
         return [
-            .init(classDate: now.addingTimeInterval(-80 * 24*60*60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
-            .init(classDate: now.addingTimeInterval(-25 * 24*60*60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
+            .init(classDate: now.addingTimeInterval(-60 * 24*60*60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
+            .init(classDate: now.addingTimeInterval(-20 * 24*60*60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
             .init(classDate: now.addingTimeInterval(-30 * 24*60*60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
             .init(classDate: now, courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
+            .init(classDate: now.addingTimeInterval(-90 * 24*60*60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
+            .init(classDate: now.addingTimeInterval(-100 * 24*60*60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
+            .init(classDate: now.addingTimeInterval(-110 * 24*60*60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
+            .init(classDate: now.addingTimeInterval(-120 * 24*60*60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
+            .init(classDate: now.addingTimeInterval(-130 * 24*60*60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
             .init(classDate: now.addingTimeInterval(30 * 24 * 60 * 60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .near)
         ]
     }
@@ -227,7 +232,27 @@ struct PointDto: Identifiable, Codable, Hashable, Sendable {
                 student: "jane.smith@example.com",
                 lesson: lessons[4],
                 activityValue: 7.0
-            )
+            ),
+            .init(
+                student: "jane.smith@example.com",
+                lesson: lessons[5],
+                activityValue: 1.0
+            ),
+            .init(
+                student: "jane.smith@example.com",
+                lesson: lessons[6],
+                activityValue: 0.0
+            ),
+            .init(
+                student: "jane.smith@example.com",
+                lesson: lessons[7],
+                activityValue: 6.0
+            ),
+            .init(
+                student: "jane.smith@example.com",
+                lesson: lessons[8],
+                activityValue: 3.0
+            ),
         ]
     }
 }

@@ -20,10 +20,6 @@ import SwiftUI
 struct LessonsView: View {
     let course: CourseDto
     
-    var points: Double? {
-        pointsArray.reduce(0) { $0 + $1.activityValue }
-    }
-    
     @State var lessons: Set<LessonDto> = [] {
         didSet {
             groupedLessons =
@@ -110,7 +106,7 @@ struct LessonsView: View {
         }
         .sheet(isPresented: $showCharts) {
             NavigationStack {
-                GraphsView(activityPoints: pointsArray)
+                ChartsView(pointsArray: pointsArray)
                     .toolbar {
                         ToolbarItem(placement: .automatic) {
                             Button("Done") {
@@ -133,23 +129,19 @@ struct LessonsView: View {
             hasRunInitialTask = true
         }
         .toolbar {
-            if let points = points {
-                ToolbarItem {
-                    Text(String(format: "%.1f", points) + " points")
-                        .font(.caption)
-                }
-            }
             ToolbarItem {
                 Button {
                     showCharts = true
                 } label: {
-                    Image(systemName: "chart.bar.fill")
+                    Image(systemName: "chart.bar")
                 }
+                .accessibilityLabel("Show activity statistics")
             }
             ToolbarItem {
                 NavigationLink(destination: CourseUsers(course: course)) {
-                    Image(systemName: OAuthManager.shared.isAuthorised(user: course.creator) ? "person.2.badge.gearshape.fill" : "person.2.fill").symbolRenderingMode(.palette)
+                    Image(systemName: OAuthManager.shared.isAuthorised(user: course.creator) ? "person.2.badge.gearshape" : "person.2").symbolRenderingMode(.palette)
                 }
+                .accessibilityLabel("Show course members")
             }
             if OAuthManager.shared.isAuthorised(user: course.creator) {
                 ToolbarItem {
@@ -182,6 +174,8 @@ struct LessonsView: View {
                 await activityTask
             }
         }
+        .navigationTitle("Lessons")
+        .navigationBarTitleDisplayMode(.inline)
     }
     
     private func deleteLesson(lesson: LessonDto) async throws {
@@ -224,8 +218,10 @@ struct LessonsView: View {
                         .foregroundStyle(.accent)
                     Spacer()
                     Text(String(format: "%.1f", activity))
+                        .accessibilityLabel("\(String(format: "%.1f", activity)) points")
                 }
             }
+            .accessibilityHint("Check assigned tasks")
         } else if lesson.status == .near {
             if !lesson.exercises.isEmpty {
                 NavigationLink(destination: TasksAssignView(title: formattedDate(from: lesson.classDate), lessonId: lesson.id, exercises: lesson.exercises.sortedByNumber())) {
@@ -234,6 +230,7 @@ struct LessonsView: View {
                             .font(.headline)
                     }
                 }
+                .accessibilityHint("Declare exercises")
             } else {
                 HStack {
                     Text(formattedDate(from: lesson.classDate))
