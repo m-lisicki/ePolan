@@ -76,7 +76,7 @@ struct CourseUsers: View {
         .alert(isPresented: $showingAlert) {
             Alert(
                 title: Text("Error"),
-                message: Text("Something went wrong. Try again later."),
+                message: Text("Something went with data fetching. Try again later."),
                 dismissButton: .default(Text("OK"))
             )
         }
@@ -84,9 +84,12 @@ struct CourseUsers: View {
     
     func fetchData() async {
 #if !targetEnvironment(simulator)
-        let userSet = try? await DBQuery.getAllStudents(courseId: course.id)
-        if let userSet = userSet {
+        do {
+            let userSet = try await DBQuery.getAllStudents(courseId: course.id)
             users = Array(userSet).sorted { $0 < $1 }
+        } catch {
+            showingAlert = true
+            return
         }
 #else
         users = ["Dr. Strangelove", "David Bowie", "Witkacy"]

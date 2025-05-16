@@ -320,11 +320,23 @@ extension OAuthManager {
             try? await refreshTokens()
         }
         
+        let externalAgent = OIDExternalUserAgentIOS(presenting: rootVC)
         guard let token = accessToken else {
             //throw OAuthError.unauthorised
             return ""
         }
         
+        currentAuthorizationFlow = OIDAuthorizationService.present(
+            endSessionRequest,
+            externalUserAgent: externalAgent!
+        ) { @MainActor [weak self] response, error in
+            if let error = error {
+                log.error("Logout error: \(error.localizedDescription)")
+            } else {
+                log.info("Logged out successfully")
+                self?.authState = nil
+                self?.email = nil
+            }
         return token
     }
 }
@@ -356,6 +368,9 @@ extension OAuthError: LocalizedError {
             return "No refresh token available. Please login again."
         }
     }
+    
+    func isAuthorised(user: String) -> Bool {
+        user == self.email ?? ""
 }
 
 extension Dictionary where Key == String, Value == String {
