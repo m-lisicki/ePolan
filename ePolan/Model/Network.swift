@@ -26,11 +26,12 @@ struct NetworkConstants {
 actor ApiClient {
     static let shared = ApiClient()
     var sharedSession = URLSession(configuration: .default)
+    private let cache: URLCache
     
     private init() {
-        let memoryCapacity = 10 * 1024 * 1024 // 20 MB
-        let diskCapacity   = 20 * 1024 * 1024 // 100 MB
-        let cache = URLCache(memoryCapacity: memoryCapacity,
+        let memoryCapacity = 20 * 1024 * 1024 // 20 MB
+        let diskCapacity   = 100 * 1024 * 1024 // 100 MB
+        cache = URLCache(memoryCapacity: memoryCapacity,
                              diskCapacity: diskCapacity,
                              diskPath: "urlCache")
         
@@ -40,6 +41,14 @@ actor ApiClient {
         
         sharedSession = URLSession(configuration: config)
     }
+    
+        func removeCachedResponse(for request: URLRequest) {
+            cache.removeCachedResponse(for: request)
+        }
+        
+        func removeAllCachedResponses() {
+            cache.removeAllCachedResponses()
+        }
     
     let jsonDecoder: JSONDecoder = {
         let decoder = JSONDecoder()
@@ -67,11 +76,12 @@ struct DBQuery {
         url: URL,
         method: HTTPMethod,
         body: Encodable? = nil,
-        forceRefresh: Bool = false
+        forceRefresh: Bool = false,
+        invalidateCache: Bool = false
     ) async throws -> URLRequest {
         var request = URLRequest(url: url)
         request.httpMethod = method.rawValue
-        request.setValue("Bearer \(await OAuthManager.shared.currentValidToken())", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(await OAuthManager.shared.useFreshToken())", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.cachePolicy = forceRefresh ? .reloadIgnoringLocalCacheData : .useProtocolCachePolicy
         
@@ -80,6 +90,10 @@ struct DBQuery {
         }
         
         return request
+    }
+    
+    private struct APIErrorResponse: Decodable {
+        let error: String
     }
     
     private static func validate(
@@ -103,17 +117,16 @@ struct DBQuery {
         body: Encodable? = nil,
         forceRefresh: Bool = false
     ) async throws -> T {
-        let request = try await makeRequest(url: url, method: method, body: body, forceRefresh: forceRefresh)
-        
-        let (data, response) = try await ApiClient.shared.sharedSession.data(for: request)
-        let validData = try validate(data: data, response: response)
-        
         do {
+            let request = try await makeRequest(url: url, method: method, body: body, forceRefresh: forceRefresh)
+            
+            let (data, response) = try await ApiClient.shared.sharedSession.data(for: request)
+            
+            let validData = try validate(data: data, response: response)
+   
             return try ApiClient.shared.jsonDecoder.decode(T.self, from: validData)
         } catch {
-            log.error("Decoding Error for \(T.self): \(error)")
-            log.info("Received data: \(String(data: validData, encoding: .utf8) ?? "N/A")")
-            throw ApiError.decodingError(error)
+            throw ApiError.requestError(error)
         }
     }
     
@@ -129,20 +142,44 @@ struct DBQuery {
     
     // MARK: - API Calls
     
+    // MARK: - Students - NR
+    private static func getAllStudentURL(_ courseId: UUID) -> URL { URL(string: "\(NetworkConstants.baseUrl)/course/\(courseId.uuidString)/students")! }
+    static func getAllStudents(courseId: UUID) async throws -> Set<String> {
+        try await send(url: getAllStudentURL(courseId), method: .GET)
+    }
+    
+    static func addStudent(courseId: UUID, email: String) async throws {
+        try await send(url: URL(string: "\(NetworkConstants.baseUrl)/course/\(email)/\(courseId.uuidString)")!, method: .POST)
+        
+        try await ApiClient.shared.removeCachedResponse(for: makeRequest(url: getAllStudentURL(courseId), method: .GET))
+    }
+    
+    static func removeStudent(courseId: UUID, email: String) async throws {
+        try await send(url: URL(string: "\(NetworkConstants.baseUrl)/course/\(email)/\(courseId.uuidString)")!, method: .DELETE)
+        
+        try await ApiClient.shared.removeCachedResponse(for: makeRequest(url: getAllStudentURL(courseId), method: .GET))
+    }
+    
+    // MARK: - Courses - NR
+    private static func getAllCoursesURL() -> URL { URL(string: "\(NetworkConstants.baseUrl)/course/courses")! }
+    static func getAllCourses(forceRefresh: Bool = false) async throws -> Set<CourseDto> {
+        try await send(url: getAllCoursesURL(), method: .GET, forceRefresh: forceRefresh)
+    }
+    
+    private static func getAllArchivedCoursesURL() -> URL { URL(string: "\(NetworkConstants.baseUrl)/course/courses/archived")! }
+    static func getArchivedCourses() async throws -> Set<CourseDto> {
+        try await send(url: getAllArchivedCoursesURL(), method: .GET)
+    }
+    
     static func createCourse(
         name: String,
         instructor: String,
         swiftShortSymbols: Set<String>,
         students: Set<String>,
-        startDateISO: String,
-        endDateISO: String,
+        startDate: Date,
+        endDate: Date,
         frequency: Int
     ) async throws -> CourseDto {
-        guard let startDate = ISO8601DateFormatter().date(from: startDateISO),
-              let endDate = ISO8601DateFormatter().date(from: endDateISO) else {
-            throw ApiError.invalidDateFormat
-        }
-        
         var lessonTimes = Set<LessonTime>()
         swiftShortSymbols.map { $0.convertShortWeekDaysToFull()! }.forEach { lessonTimes.insert(.init(dayOfWeek: $0))}
         
@@ -157,33 +194,32 @@ struct DBQuery {
             frequency: frequency
         )
         
-        return try await send(url: URL(string: "\(NetworkConstants.baseUrl)/course/create")!, method: .POST, body: payload)
+        let newCourseDto: CourseDto = try await send(url: URL(string: "\(NetworkConstants.baseUrl)/course/create")!, method: .POST, body: payload)
+        try await ApiClient.shared.removeCachedResponse(for: makeRequest(url: getAllCoursesURL(), method: .GET))
+        return newCourseDto
     }
     
-    static func getAllStudents(courseId: UUID) async throws -> Set<String> {
-        try await send(url: URL(string: "\(NetworkConstants.baseUrl)/course/\(courseId.uuidString)/students")!, method: .GET)
+    static func archiveCourse(courseId: UUID) async throws {
+        try await send(url: URL(string: "\(NetworkConstants.baseUrl)/course/\(courseId.uuidString)")!, method: .DELETE)
+        
+        try await ApiClient.shared.removeCachedResponse(for: makeRequest(url: getAllCoursesURL(), method: .GET))
+        try await ApiClient.shared.removeCachedResponse(for: makeRequest(url: getAllArchivedCoursesURL(), method: .GET))
     }
     
-    static func addStudent(courseId: UUID, email: String) async throws {
-        try await send(url: URL(string: "\(NetworkConstants.baseUrl)/course/\(email)/\(courseId.uuidString)")!, method: .POST)
+    static func unarchiveCourse(courseId: UUID) async throws {
+        try await send(url: URL(string: "\(NetworkConstants.baseUrl)/course/\(courseId.uuidString)")!, method: .PUT)
+        
+        try await ApiClient.shared.removeCachedResponse(for: makeRequest(url: getAllCoursesURL(), method: .GET))
+        try await ApiClient.shared.removeCachedResponse(for: makeRequest(url: getAllArchivedCoursesURL(), method: .GET))
     }
     
-    static func removeStudent(courseId: UUID, email: String) async throws {
-        try await send(url: URL(string: "\(NetworkConstants.baseUrl)/course/\(email)/\(courseId.uuidString)")!, method: .DELETE)
+    static func joinCourse(invitationCode: String) async throws {
+        try await send(url: URL(string: "\(NetworkConstants.baseUrl)/course/\(invitationCode)")!, method: .POST)
+        
+        try await ApiClient.shared.removeCachedResponse(for: makeRequest(url: getAllCoursesURL(), method: .GET))
     }
     
-    static func getAllCourses(forceRefresh: Bool = false) async throws -> Set<CourseDto> {
-        try await send(url: URL(string: "\(NetworkConstants.baseUrl)/course/courses")!, method: .GET, forceRefresh: forceRefresh)
-    }
-    
-    static func getAllExercises(lessonId: UUID) async throws -> [ExerciseDto] {
-        try await send(url: URL(string: "\(NetworkConstants.baseUrl)/lesson/\(lessonId.uuidString)/exercises")!, method: .GET)
-    }
-    
-    static func getAllLessons(courseId: UUID, forceRefresh: Bool = false) async throws -> [LessonDto] {
-        try await send(url: URL(string: "\(NetworkConstants.baseUrl)/lesson/\(courseId.uuidString)/lessons")!, method: .GET, forceRefresh: forceRefresh)
-    }
-    
+    // MARK: - Declarations - MR
     static func getAllLessonDeclarations(lessonId: UUID, forceRefresh: Bool = false) async throws -> Set<DeclarationDto> {
         try await send(url: URL(string: "\(NetworkConstants.baseUrl)/declaration/lesson/\(lessonId.uuidString)")!, method: .GET, forceRefresh: forceRefresh)
     }
@@ -192,59 +228,62 @@ struct DBQuery {
         try await send(url: URL(string: "\(NetworkConstants.baseUrl)/declaration/\(exerciseId.uuidString)")!, method: .POST)
     }
     
-    static func postUnDeclaration(declarationId: UUID) async throws {
+    static func removeDeclaration(declarationId: UUID) async throws {
         try await send(url: URL(string: "\(NetworkConstants.baseUrl)/declaration/\(declarationId.uuidString)")!, method: .DELETE)
     }
     
+    // MARK: - Points - NR
+    
+    private static func getPointsURL(_ courseId: UUID) -> URL { URL(string: "\(NetworkConstants.baseUrl)/points/\(courseId.uuidString)/howMany")! }
     static func getPoints(courseId: UUID) async throws {
-        try await send(url: URL(string: "\(NetworkConstants.baseUrl)/points/\(courseId.uuidString)/howMany")!, method: .GET)
+        try await send(url: getPointsURL(courseId), method: .GET)
     }
     
+    private static func getPointsForCourseURL(_ courseId: UUID) -> URL { URL(string: "\(NetworkConstants.baseUrl)/points/\(courseId.uuidString)")! }
     static func getPointsForCourse(courseId: UUID, forceRefresh: Bool) async throws -> [PointDto] {
-        try await send(url: URL(string: "\(NetworkConstants.baseUrl)/points/\(courseId.uuidString)")!, method: .GET, forceRefresh: forceRefresh)
+        try await send(url: getPointsForCourseURL(courseId), method: .GET, forceRefresh: forceRefresh)
     }
     
-    static func addPoints(lessonId: UUID, activityValue: Double) async throws {
+    static func addPoints(lessonId: UUID, courseId: UUID, activityValue: Double) async throws {
         try await send(url: URL(string: "\(NetworkConstants.baseUrl)/points/\(lessonId.uuidString)/\(activityValue)")!, method: .POST)
+        
+        try await ApiClient.shared.removeCachedResponse(for: makeRequest(url: getPointsForCourseURL(courseId), method: .GET))
+    }
+    
+    // MARK: - Lessons - NR
+    
+    private static func getAllLessonsURL(_ courseId: UUID) -> URL { URL(string: "\(NetworkConstants.baseUrl)/lesson/\(courseId.uuidString)/lessons")! }
+    static func getAllLessons(courseId: UUID, forceRefresh: Bool = false) async throws -> Set<LessonDto> {
+        try await send(url: getAllLessonsURL(courseId), method: .GET, forceRefresh: forceRefresh)
+    }
+    
+    static func deleteLesson(lessonId: UUID, courseId: UUID) async throws {
+        try await send(url: URL(string: "\(NetworkConstants.baseUrl)/lesson/\(lessonId.uuidString)")!, method: .DELETE)
+        
+        try await ApiClient.shared.removeCachedResponse(for: makeRequest(url: getAllLessonsURL(courseId), method: .GET))
+    }
+    
+    static func manualAddLesson(courseId: UUID, date: Date) async throws {
+        try await send(url: URL(string: "\(NetworkConstants.baseUrl)/lesson/\(courseId.uuidString)/\(date.ISO8601Format())/addLesson")!, method: .PUT)
+        
+        try await ApiClient.shared.removeCachedResponse(for: makeRequest(url: getAllLessonsURL(courseId), method: .GET))
+    }
+    
+    // MARK: - Exercises - NR
+    
+    private static func getAllExercisesURL(_ lessonId: UUID) -> URL { URL(string: "\(NetworkConstants.baseUrl)/lesson/\(lessonId.uuidString)/exercises")! }
+    static func getAllExercises(lessonId: UUID) async throws -> [ExerciseDto] {
+        try await send(url: getAllExercisesURL(lessonId), method: .GET)
+    }
+    
+    static func postExercises(lesson: LessonDto) async throws {
+        try await send(url: URL(string: "\(NetworkConstants.baseUrl)/lesson/exercises")!, method: .PUT, body: lesson)
+        
+        try await ApiClient.shared.removeCachedResponse(for: makeRequest(url: getAllExercisesURL(lesson.id), method: .GET))
     }
     
     static func getUserEmail() async throws -> String {
         let userInfo: UserInfoDto = try await send(url: URL(string: "\(NetworkConstants.keycloakUrl)/realms/Users/protocol/openid-connect/userinfo")!, method: .GET)
         return userInfo.email
     }
-    
-    static func addLesson(courseId: UUID, exercisesAmount: Int) async throws {
-        try await send(url: URL(string: "\(NetworkConstants.baseUrl)/create/\(courseId.uuidString)/\(exercisesAmount)")!, method: .POST)
-    }
-    
-    static func deleteLesson(lessonId: UUID) async throws {
-        try await send(url: URL(string: "\(NetworkConstants.baseUrl)/lesson/\(lessonId.uuidString)")!, method: .DELETE)
-    }
-    
-    static func postExercises(lesson: LessonDto) async throws {
-        try await send(url: URL(string: "\(NetworkConstants.baseUrl)/lesson/exercises")!, method: .PUT, body: lesson)
-    }
-    
-    static func archiveCourse(courseId: UUID) async throws {
-        try await send(url: URL(string: "\(NetworkConstants.baseUrl)/course/\(courseId.uuidString)")!, method: .DELETE)
-    }
-    
-    static func manualAddLesson(courseId: UUID, date: Date) async throws -> LessonDto {
-        try await send(url: URL(string: "\(NetworkConstants.baseUrl)/lesson/\(courseId.uuidString)/\(date.ISO8601Format())/addLesson")!, method: .POST)
-    }
-    
-    static func joinCourse(invitationCode: String) async throws {
-        try await send(url: URL(string: "\(NetworkConstants.baseUrl)/course/\(invitationCode)")!, method: .POST)
-    }
-}
-
-// MARK: - Error Handling
-
-enum ApiError: Error {
-    case invalidResponse
-    case httpError(statusCode: Int, body: String)
-    case decodingError(Error)
-    case encodingError(Error)
-    case invalidDateFormat
-    case customError(String)
 }

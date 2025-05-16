@@ -11,107 +11,62 @@ import SwiftUI
 #Preview {
     CourseView()
         .environment(NetworkMonitor())
-        .environment(RefreshController())
-}
-
-enum ViewState {
-    case loading
-    case loaded
-    case empty
-    case offlineNotLoaded
-    case error(ApiError)
-}
-
-extension View {
-    func fallbackView(viewState: ViewState, fetchData: @escaping (_ forceRefresh: Bool) async -> Void) -> some View {
-        overlay {
-            switch viewState {
-            case .loading:
-                ProgressView()
-                    .padding()
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
-                
-            case .empty:
-                ContentUnavailableView("No courses", systemImage: "book.closed")
-                
-            case .offlineNotLoaded:
-                ContentUnavailableView {
-                    Label("No Internet Connection", systemImage: "wifi.slash")
-                } description: {
-                    Text("Please check your internet and try again.")
-                }
-                
-            case .loaded:
-                EmptyView()
-                
-            case .error(let error):
-                ContentUnavailableView {
-                    Label("Something went wrong", systemImage: "exclamationmark.triangle")
-                } description: {
-                    Text(error.localizedDescription)
-                } actions: {
-                    Button("Retry") {
-                        Task {
-                            await fetchData(true)
-                        }
-                    }
-                }
-            }
-        }
-        
-    }
 }
 
 
-struct CourseView: View {
-    @State var courses = Array<CourseDto>()
+struct CourseView: View, FallbackView {
+    typealias T = CourseDto
     
+    @State var data: Set<CourseDto>? {
+        didSet {
+            groupedCourses = data?.sorted { $0.name < $1.name } ?? []
+        }
+    }
+    
+    @State var groupedCourses = [CourseDto]()
     @State var showAddCode = false
     @State var showCreate = false
-    @State var coursesHasLoaded = false
+    @State var showArchived = false
     
-    @State private var apiError: ApiError?
-    
-    
-    var viewState: ViewState {
-        if !networkMonitor.isConnected && !coursesHasLoaded {
-            return .offlineNotLoaded
-        } else if let error = apiError, networkMonitor.isConnected {
-            return .error(error)
-        } else if !coursesHasLoaded {
-            return .loading
-        } else if courses.isEmpty {
-            return .empty
-        } else {
-            return .loaded
+    var refreshController = RefreshController()
+
+    @State var showApiError: Bool = false
+    @State var apiError: ApiError? {
+        didSet {
+            if networkMonitor.isConnected {
+                showApiError = true
+            }
         }
     }
     
-    @Environment(NetworkMonitor.self) private var networkMonitor
+    @Environment(NetworkMonitor.self) var networkMonitor
     
     var body: some View {
         NavigationStack {
             VStack {
-                List($courses, id: \.id) { $course in
-                    //                        if !course.isArchived {
-                    NavigationLink(destination: LessonsView(course: course)) {
+                List($groupedCourses, id: \.id) { $course in
+                    NavigationLink(destination: LessonsView(course: course).environment(refreshController)) {
                         Text(course.name)
                             .font(.headline)
                     }
                     .swipeActions {
-                        //                                Button("Archive") {
-                        //                                    Task {
-                        //                                        try await DBQuery.archiveCourse(courseId: course.id)
-                        //                                        await fetchData()
-                        //                                    }
-                        //                                }
+                        Button("Archive") {
+                            Task {
+                                do {
+                                    try await DBQuery.archiveCourse(courseId: course.id)
+                                    data?.remove(course)
+                                } catch {
+                                    apiError = error.mapToApiError()
+                                }
+                            }
+                        }
                     }
-                    //                        }
                 }
                 .refreshable {
                     await fetchData(forceRefresh: true)
                 }
             }
+            .errorAlert(isPresented: $showApiError, error: apiError)
             .fallbackView(viewState: viewState, fetchData: fetchData)
             .navigationTitle("Courses")
             .overlay(alignment: .bottom) {
@@ -122,14 +77,11 @@ struct CourseView: View {
                 }
             }
             .toolbar {
-                //                let archivedCourses = courses.filter(\.isArchived)
-                //                if !archivedCourses.isEmpty {
-                //                    ToolbarItem {
-                //                        NavigationLink(destination: ArchivedCoursesView(archivedCourses: archivedCourses)) {
-                //                            Image(systemName: "archivebox")
-                //                        }
-                //                    }
-                //                }
+                ToolbarItem {
+                    Button(action: { showArchived = true }) {
+                        Image(systemName: "archivebox")
+                    }
+                }
                 ToolbarItem {
                     Button(action: {
                         withAnimation {
@@ -142,7 +94,7 @@ struct CourseView: View {
                 }
                 
                 ToolbarItem(placement: .primaryAction) {
-                    Button(action: { withAnimation { showCreate = true } }) {
+                    Button(action: { showCreate = true }) {
                         Image(systemName: "plus.rectangle.on.rectangle")
                     }
                     .accessibilityLabel("Add new course")
@@ -163,9 +115,27 @@ struct CourseView: View {
                     await fetchData()
                 }
             }
+            .onReceive(refreshController.refreshSignalCourses) { _ in
+                Task {
+                    await fetchData()
+                }
+            }
+            .sheet(isPresented: $showArchived) {
+                NavigationStack {
+                    ArchivedCoursesView()
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Cancel") {
+                                    showArchived = false
+                                }
+                            }
+                        }
+                        .environment(refreshController)
+                }
+            }
             .sheet(isPresented: $showCreate) {
                 NavigationStack {
-                    CreateCourseView(courses: $courses)
+                    CreateCourseView(courses: $groupedCourses)
                         .presentationSizing(.form)
                         .toolbar {
                             ToolbarItem(placement: .cancellationAction) {
@@ -179,21 +149,15 @@ struct CourseView: View {
         }
     }
     
-    private func fetchData(forceRefresh: Bool = false) async {
+    func fetchData(forceRefresh: Bool = false) async {
 #if !targetEnvironment(simulator)
         do {
-            let setCourses = try await DBQuery.getAllCourses(forceRefresh: forceRefresh)
-            courses = Array(setCourses).sorted { $0.name < $1.name }
-            coursesHasLoaded = true
-            apiError = nil
-        }  catch let error as ApiError {
-            apiError = error
-        } catch {
-            apiError = .customError("Unexpected error: \(error.localizedDescription)")
+            data = try await DBQuery.getAllCourses(forceRefresh: forceRefresh)
+        }  catch {
+            apiError = error.mapToApiError()
         }
 #else
-        courses = CourseDto.getMockData()
-        coursesHasLoaded = true
+        data = Set(CourseDto.getMockData())
 #endif
     }
 }
@@ -218,12 +182,70 @@ struct JoinCourseView: View {
     }
 }
 
-struct ArchivedCoursesView: View {
-    let archivedCourses: [CourseDto]
+struct ArchivedCoursesView: View, FallbackView {
+    typealias T = CourseDto
+        
+    @State var data: Set<CourseDto>? {
+        didSet {
+            groupedCourses = data?.sorted { $0.name < $1.name } ?? []
+        }
+    }
+    
+    @State var groupedCourses = [CourseDto]()
+    
+    @Environment(NetworkMonitor.self) var networkMonitor
+    @Environment(RefreshController.self) var refreshController
+    
+    @State var showApiError: Bool = false
+    @State var apiError: ApiError? {
+        didSet {
+            if networkMonitor.isConnected {
+                showApiError = true
+            }
+        }
+    }
+    
     
     var body: some View {
-        List(archivedCourses, id: \.id) { course in
-            Text(course.name)
+        VStack {
+            List(groupedCourses, id: \.id) { course in
+                Text(course.name)
+                    .swipeActions {
+                        Button("Unarchive") {
+                            Task {
+                                do {
+                                    try await DBQuery.unarchiveCourse(courseId: course.id)
+                                    data?.remove(course)
+                                    refreshController.triggerRefreshCourses()
+                                } catch {
+                                    apiError = error.mapToApiError()
+                                }
+                            }
+                        }
+                    }
+            }
+            .task {
+                await fetchData()
+            }
+            .refreshable {
+                await fetchData(forceRefresh: true)
+            }
         }
+        .navigationTitle("Archived Courses")
+        .navigationBarTitleDisplayMode(.inline)
+        .fallbackView(viewState: viewState, fetchData: fetchData)
+        .errorAlert(isPresented: $showApiError, error: apiError)
+    }
+    
+    func fetchData(forceRefresh: Bool = false) async {
+#if !targetEnvironment(simulator)
+        do {
+            data = try await DBQuery.getArchivedCourses()
+        } catch {
+            apiError = error.mapToApiError()
+        }
+#else
+        data = Set(CourseDto.getMockData())
+#endif
     }
 }

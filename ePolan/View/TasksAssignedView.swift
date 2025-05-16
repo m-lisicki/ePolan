@@ -11,26 +11,37 @@ import Combine
 import ConfettiSwiftUI
 
 #Preview {
-    TasksAssignedView(title: "Get Back!", lesson: LessonDto.getMockData().first!, activity: 0.0)
+    TasksAssignedView(title: "Get Back!", lesson: LessonDto.getMockData().first!, courseId: UUID(), activity: 0.0)
         .environment(OAuthManager.shared)
         .environment(NetworkMonitor())
         .environment(RefreshController())
 }
 
-struct TasksAssignedView: View {
+struct TasksAssignedView: View, FallbackView {
+    typealias T = DeclarationDto
+            
     let title: String
     let lesson: LessonDto
-    @State var declarations = Set<DeclarationDto>()
+    let courseId: UUID
+    
+    @State var data: Set<DeclarationDto>?
     @State var activity: Double
     
     @State var activityTask: Task<Void, Never>?
-    @State var savingError = false
     
-    @State var confetti = false
+    @State var showApiError: Bool = false
+    @State var apiError: ApiError? {
+        didSet {
+            if networkMonitor.isConnected {
+                showApiError = true
+            }
+        }
+    }
     
+    @State var isConfettiActivated = false
+        
+    @Environment(NetworkMonitor.self) var networkMonitor
     @Environment(RefreshController.self) var refreshController
-    
-    @Environment(NetworkMonitor.self) private var networkMonitor
     
     @Environment(\.accessibilityReduceMotion) var reduceMotion
     
@@ -40,19 +51,15 @@ struct TasksAssignedView: View {
                 HStack {
                     Text("\(exercise.exerciseNumber)\(exercise.subpoint ?? "").")
                     Spacer()
-                    Text(declarations.contains(where: { $0.exercise == exercise && $0.declarationStatus == .approved }) ? "Assigned 🎉" : "Not assigned")
+                    if let data = data {
+                        Text(data.contains(where: { $0.exercise == exercise && $0.declarationStatus == .approved }) ? "Assigned 🎉" : "Not assigned")
+                    }
                 }
             }
             .refreshable {
                 await fetchData()
-            }.overlay {
-                if lesson.exercises.isEmpty {
-                    ContentUnavailableView("No exercises", systemImage: "pencil.and.list.clipboard")
-                } else if declarations.isEmpty {
-                    ContentUnavailableView("No declarations", systemImage: "person.fill")
-                }
             }
-            .confettiCannon(trigger: $confetti)
+            .confettiCannon(trigger: $isConfettiActivated)
             Stepper(value: Binding<Double>(get:{self.activity},set:{self.activity = $0}), in: 0...5, step: 0.5) {
                 Text("Points: \(String(format: "%.1f", activity))")
                     .accessibilityLabel("Points selector")
@@ -60,9 +67,10 @@ struct TasksAssignedView: View {
             .accessibilityValue("\(String(format: "%.1f", activity)) points")
             .padding()
         }
-        .onChange(of: declarations) {
-            if declarations.first(where: { $0.declarationStatus == .approved }) != nil && !reduceMotion {
-                confetti.toggle()
+        .fallbackView(viewState: viewState, fetchData: fetchData)
+        .onChange(of: data) {
+            if data?.first(where: { $0.declarationStatus == .approved }) != nil && !reduceMotion {
+                isConfettiActivated.toggle()
             }
         }
         .onChange(of: activity) { oldValue, newValue in
@@ -73,21 +81,14 @@ struct TasksAssignedView: View {
                 if Task.isCancelled { return }
                 
                 do {
-                    try await DBQuery.addPoints(lessonId: lesson.id, activityValue: newValue)
-                    refreshController.refreshSignalActivity.send()
+                    try await DBQuery.addPoints(lessonId: lesson.id, courseId: courseId, activityValue: newValue)
+                    refreshController.triggerRefreshActivity()
                 } catch {
-                    savingError = true
+                    apiError = .customError("Unable to add points: \(error.localizedDescription)")
                 }
-                
             }
         }
-        .alert(isPresented: $savingError) {
-            Alert(
-                title: Text("Saving error"),
-                message: Text("Something went wrong. Try again later."),
-                dismissButton: .default(Text("OK"))
-            )
-        }
+        .errorAlert(isPresented: $showApiError, error: apiError)
         .task {
             await fetchData()
         }
@@ -102,12 +103,13 @@ struct TasksAssignedView: View {
     
     private func fetchData(forceRefresh: Bool = false) async {
 #if !targetEnvironment(simulator)
-        let declarations = try? await DBQuery.getAllLessonDeclarations(lessonId: lesson.id, forceRefresh: forceRefresh)
-        if let declarations = declarations {
-            self.declarations = declarations
+        do {
+            data = try await DBQuery.getAllLessonDeclarations(lessonId: lesson.id, forceRefresh: forceRefresh)
+        } catch {
+            apiError = error.mapToApiError()
         }
 #else
-        declarations = Set(DeclarationDto.getMockData())
+        data = Set(DeclarationDto.getMockData())
 #endif
     }
 }

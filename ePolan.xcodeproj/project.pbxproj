@@ -9,7 +9,9 @@
 /* Begin PBXBuildFile section */
 		2152FB042600AC8F00CF470E /* ePolan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2152FB032600AC8F00CF470E /* ePolan.swift */; };
 		D43184C92DD88E2C00BD5081 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = D43184C82DD88E2100BD5081 /* Localizable.xcstrings */; };
+		D431850B2DD8A9CA00BD5081 /* ErrorHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = D431850A2DD8A9CA00BD5081 /* ErrorHandling.swift */; };
 		D461D2392DD22C9E0098BE54 /* ConfettiSwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = D461D2382DD22C9E0098BE54 /* ConfettiSwiftUI */; };
+		D48D61512DD9BCFC005241AC /* Atlantis in Frameworks */ = {isa = PBXBuildFile; productRef = D48D61502DD9BCFC005241AC /* Atlantis */; };
 		D4B693F02DD36497008EBDFC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 058557BA273AAA24004C7B11 /* Assets.xcassets */; };
 		D4B693F12DD36499008EBDFC /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 058557D8273AAEEB004C7B11 /* Preview Assets.xcassets */; };
 /* End PBXBuildFile section */
@@ -19,8 +21,8 @@
 		058557D8273AAEEB004C7B11 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		2152FB032600AC8F00CF470E /* ePolan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ePolan.swift; sourceTree = "<group>"; };
 		D43184C82DD88E2100BD5081 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		D431850A2DD8A9CA00BD5081 /* ErrorHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorHandling.swift; sourceTree = "<group>"; };
 		D4B693F22DD36536008EBDFC /* ePolan.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ePolan.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		D4B694622DD36AB1008EBDFC /* ePolan.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ePolan.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -34,6 +36,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D48D61512DD9BCFC005241AC /* Atlantis in Frameworks */,
 				D461D2392DD22C9E0098BE54 /* ConfettiSwiftUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -52,7 +55,6 @@
 		7555FF72242A565900829871 = {
 			isa = PBXGroup;
 			children = (
-				D43184C82DD88E2100BD5081 /* Localizable.xcstrings */,
 				7555FF7D242A565900829871 /* ePolan */,
 				D4B693F22DD36536008EBDFC /* ePolan.app */,
 			);
@@ -61,13 +63,14 @@
 		7555FF7D242A565900829871 /* ePolan */ = {
 			isa = PBXGroup;
 			children = (
-				D4B694622DD36AB1008EBDFC /* ePolan.entitlements */,
+				D431850A2DD8A9CA00BD5081 /* ErrorHandling.swift */,
 				D43425532DCFC09300AB1AE9 /* Model */,
 				D4DEBBE72DBE3DDD00218D24 /* OAuth */,
 				D42E4BB52DBD9296008C804D /* View */,
 				058557BA273AAA24004C7B11 /* Assets.xcassets */,
 				2152FB032600AC8F00CF470E /* ePolan.swift */,
 				058557D7273AAEEB004C7B11 /* Preview Content */,
+				D43184C82DD88E2100BD5081 /* Localizable.xcstrings */,
 			);
 			path = ePolan;
 			sourceTree = "<group>";
@@ -95,6 +98,7 @@
 			name = ePolan;
 			packageProductDependencies = (
 				D461D2382DD22C9E0098BE54 /* ConfettiSwiftUI */,
+				D48D61502DD9BCFC005241AC /* Atlantis */,
 			);
 			productName = iosApp;
 			productReference = D4B693F22DD36536008EBDFC /* ePolan.app */;
@@ -128,6 +132,7 @@
 			mainGroup = 7555FF72242A565900829871;
 			packageReferences = (
 				D461D2372DD22C9E0098BE54 /* XCRemoteSwiftPackageReference "ConfettiSwiftUI" */,
+				D48D614F2DD9BCFC005241AC /* XCRemoteSwiftPackageReference "atlantis" */,
 			);
 			productRefGroup = 7555FF72242A565900829871;
 			projectDirPath = "";
@@ -157,6 +162,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				2152FB042600AC8F00CF470E /* ePolan.swift in Sources */,
+				D431850B2DD8A9CA00BD5081 /* ErrorHandling.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -299,6 +305,7 @@
 				INFOPLIST_FILE = ePolan/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ePolan;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Atlantis would use Bonjour Service to discover Proxyman app from your local network.";
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphone*]" = YES;
 				INFOPLIST_KEY_UIRequiredDeviceCapabilities = armv7;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -336,6 +343,7 @@
 				INFOPLIST_FILE = ePolan/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ePolan;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Atlantis would use Bonjour Service to discover Proxyman app from your local network.";
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphone*]" = YES;
 				INFOPLIST_KEY_UIRequiredDeviceCapabilities = armv7;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -390,6 +398,14 @@
 				minimumVersion = 2.0.3;
 			};
 		};
+		D48D614F2DD9BCFC005241AC /* XCRemoteSwiftPackageReference "atlantis" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ProxymanApp/atlantis";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.28.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -397,6 +413,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D461D2372DD22C9E0098BE54 /* XCRemoteSwiftPackageReference "ConfettiSwiftUI" */;
 			productName = ConfettiSwiftUI;
+		};
+		D48D61502DD9BCFC005241AC /* Atlantis */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D48D614F2DD9BCFC005241AC /* XCRemoteSwiftPackageReference "atlantis" */;
+			productName = Atlantis;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

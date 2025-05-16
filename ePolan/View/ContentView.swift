@@ -13,18 +13,15 @@ import SwiftUI
     BottomBarView()
         .environment(OAuthManager.shared)
         .environment(NetworkMonitor())
-        .environment(RefreshController())
 }
 
 struct ContentView: View {
     @Environment(OAuthManager.self) var oauth: OAuthManager
-    @State private var alertMessage: String?
-
     
     var body: some View {
         VStack {
 #if !targetEnvironment(simulator)
-            if !oauth.isLoggedIn {
+            if oauth.accessToken == nil {
                 SignInView()
             } else {
                 BottomBarView()

@@ -8,45 +8,42 @@
 
 import SwiftUI
 
-struct TasksAssignView: View {
+struct TasksAssignView: View, FallbackView {
+    typealias T = DeclarationDto
+    
     @State private var isEditing: EditMode = .active
     
     let title: String
     let lessonId: UUID
     
     @State var exercises: Array<ExerciseDto>
-    @State var declarations: Set<DeclarationDto>?
-    
+    @State var data: Set<DeclarationDto>?
+        
     @State var selection: Set<ExerciseDto> = []
     @State var initialSelection: Set<ExerciseDto> = []
-    
-    @State var savingError = false
-    
+        
     @Environment(\.dismiss) private var dismiss
     
-    @Environment(NetworkMonitor.self) private var networkMonitor
+    @Environment(NetworkMonitor.self) var networkMonitor
+    
+    @State var showApiError: Bool = false
+    @State var apiError: ApiError? {
+        didSet {
+            if networkMonitor.isConnected {
+                showApiError = true
+            }
+        }
+    }
     
     var body: some View {
         VStack {
-            if declarations != nil {
                 List(exercises, id: \.self, selection: $selection) { exercise in
                     HStack {
                         Text("\(exercise.exerciseNumber)\(exercise.subpoint ?? "").")
                     }
                 }
                 .environment(\.editMode, $isEditing)
-                .overlay {
-                    if exercises.isEmpty {
-                        ContentUnavailableView("No exercises", systemImage: "pencil.and.list.clipboard")
-                    }
-                }
-            } else {
-                VStack {
-                    Image(systemName: "slowmo")
-                        .symbolEffect(.variableColor.iterative.hideInactiveLayers.nonReversing, options: .repeat(.continuous))
-                        .imageScale(.large)
-                }
-            }
+                .fallbackView(viewState: viewState, fetchData: fetchData)
         }
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
@@ -63,11 +60,10 @@ struct TasksAssignView: View {
                             }
                             
                             for exercise in removed {
-                                if let matchingDeclarations = declarations?.filter({ $0.exercise == exercise && $0.declarationStatus == .waiting}) {
-                                    for declaration in matchingDeclarations {
-                                        group.addTask {
-                                            await postExerciseUnDeclaration(declarationId: declaration.id)
-                                        }
+                                let matchingDeclarations = data?.filter({ $0.exercise == exercise && $0.declarationStatus == .waiting}) ?? []
+                                for declaration in matchingDeclarations {
+                                    group.addTask {
+                                        await postExerciseUnDeclaration(declarationId: declaration.id)
                                     }
                                 }
                             }
@@ -89,37 +85,45 @@ struct TasksAssignView: View {
                 await fetchData()
             }
         }
-        .alert(isPresented: $savingError) {
-            Alert(
-                title: Text("Saving error"),
-                message: Text("Something went wrong. Try again later."),
-                dismissButton: .default(Text("OK"))
-            )
-        }
         .navigationTitle(title)
     }
     
-    private func fetchData() async {
+    private func fetchData(forceRefresh: Bool = false) async {
+        do {
 #if !targetEnvironment(simulator)
-        declarations = try? await DBQuery.getAllLessonDeclarations(lessonId: lessonId)
+            data = try await DBQuery.getAllLessonDeclarations(lessonId: lessonId)
 #else
-        declarations = Set(DeclarationDto.getMockData())
+            data = Set(DeclarationDto.getMockData())
 #endif
-        selection = Set(declarations?.filter { $0.declarationStatus == .waiting }.compactMap(\.exercise) ?? [])
-        
-        initialSelection = selection
+            selection = Set(data?.filter { $0.declarationStatus == .waiting }.compactMap(\.exercise) ?? [])
+            
+            initialSelection = selection
+            
+            apiError = nil
+        } catch {
+            apiError = error.mapToApiError()
+        }
     }
     
     private func postExerciseUnDeclaration(declarationId: UUID) async {
-        try? await DBQuery.postUnDeclaration(declarationId: declarationId)
-        
-        declarations = try? await DBQuery.getAllLessonDeclarations(lessonId: lessonId)
+        do {
+            try await DBQuery.removeDeclaration(declarationId: declarationId)
+            if let item = data?.first(where: { $0.id == declarationId }) {
+                data?.remove(item)
+            }
+        } catch {
+            apiError = error.mapToApiError()
+        }
     }
     
     
     private func postExerciseDeclaration(exerciseId: UUID) async {
-        try? await DBQuery.postDeclaration(exerciseId: exerciseId)
+        do {
+            try await DBQuery.postDeclaration(exerciseId: exerciseId)
+        } catch {
+            apiError = error.mapToApiError()
+        }
         
-        declarations = try? await DBQuery.getAllLessonDeclarations(lessonId: lessonId)
+        await fetchData()
     }
 }

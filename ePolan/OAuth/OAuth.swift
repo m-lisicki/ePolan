@@ -35,23 +35,38 @@ final class OAuthManager: NSObject {
     let redirectURI = "com.baklava://oauthredirect"
     
     var email: String?
-    private var accessToken: String?
+    var accessToken: String?
     private var refreshToken: String?
     private var idToken: String?
     private var expirationDate: Date?
     private var codeVerifier: String?
     
-    private let authURL = URL(string: "http://\(NetworkConstants.ip):8280/realms/Users/protocol/openid-connect/auth")!
-    private let tokenURL = URL(string: "http://\(NetworkConstants.ip):8280/realms/Users/protocol/openid-connect/token")!
-    private let logoutURL = URL(string: "http://\(NetworkConstants.ip):8280/realms/Users/protocol/openid-connect/logout")!
-    private let userInfoURL = URL(string: "http://\(NetworkConstants.ip):8280/realms/Users/protocol/openid-connect/userinfo")!
+    private struct AuthEndpoints {
+        private static let baseURLString = "\(NetworkConstants.keycloakUrl)/realms/Users/protocol/openid-connect"
+
+        static var authURL: URL {
+            URL(string: "\(baseURLString)/auth")!
+        }
+
+        static var tokenURL: URL {
+            URL(string: "\(baseURLString)/token")!
+        }
+
+        static var logoutURL: URL {
+            URL(string: "\(baseURLString)/logout")!
+        }
+
+        static var userInfoURL: URL {
+            URL(string: "\(baseURLString)/userinfo")!
+        }
+    }
     
     // MARK: - Authorization Flow
     func authorize() {
         let codeVerifier = generateCodeVerifier()
         let codeChallenge = generateCodeChallenge(from: codeVerifier)
         
-        var components = URLComponents(url: authURL, resolvingAgainstBaseURL: true)!
+        var components = URLComponents(url: AuthEndpoints.authURL, resolvingAgainstBaseURL: true)!
         components.queryItems = [
             URLQueryItem(name: "response_type", value: "code"),
             URLQueryItem(name: "client_id", value: clientID),
@@ -102,7 +117,7 @@ final class OAuthManager: NSObject {
             return
         }
         
-        var request = URLRequest(url: tokenURL)
+        var request = URLRequest(url: AuthEndpoints.tokenURL)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         
@@ -140,7 +155,7 @@ final class OAuthManager: NSObject {
             throw OAuthError.missingRefreshToken
         }
         
-        var request = URLRequest(url: tokenURL)
+        var request = URLRequest(url: AuthEndpoints.tokenURL)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         
@@ -155,7 +170,7 @@ final class OAuthManager: NSObject {
         let (data, _) = try await URLSession.shared.data(for: request)
         let response = try JSONDecoder().decode(OAuthTokenResponse.self, from: data)
         
-        await MainActor.run {
+        Task { @MainActor in
             self.accessToken = response.access_token
             self.refreshToken = response.refresh_token ?? self.refreshToken
             self.expirationDate = Date().addingTimeInterval(TimeInterval(response.expires_in))
@@ -168,7 +183,7 @@ final class OAuthManager: NSObject {
         Task {
             guard let accessToken = accessToken else { return }
             
-            var request = URLRequest(url: userInfoURL)
+            var request = URLRequest(url: AuthEndpoints.userInfoURL)
             request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
             
             do {
@@ -192,7 +207,7 @@ final class OAuthManager: NSObject {
             return
         }
         
-        var components = URLComponents(url: logoutURL, resolvingAgainstBaseURL: true)!
+        var components = URLComponents(url: AuthEndpoints.logoutURL, resolvingAgainstBaseURL: true)!
         components.queryItems = [
             URLQueryItem(name: "id_token_hint", value: idToken),
             URLQueryItem(name: "post_logout_redirect_uri", value: redirectURI)
@@ -225,7 +240,7 @@ final class OAuthManager: NSObject {
                 try await refreshTokens()
             } catch {
                 log.error("Token refresh failed: \(error)")
-                return ""
+                clearAuthState()
             }
         }
         return accessToken ?? ""
@@ -252,40 +267,58 @@ final class OAuthManager: NSObject {
     
     // MARK: - State Management
     private func saveAuthState() {
-        if let accessToken = accessToken {
-            try? KeychainHelper.shared.save(string: accessToken, for: accessTokenKey)
+        do {
+            if let accessToken = accessToken {
+                try KeychainHelper.shared.save(string: accessToken, for: accessTokenKey)
+            }
+            if let refreshToken = refreshToken {
+                try KeychainHelper.shared.save(string: refreshToken, for: refreshTokenKey)
+            }
+            if let idToken = idToken {
+                try KeychainHelper.shared.save(string: idToken, for: idTokenKey)
+            }
+            if let expiration = expirationDate {
+                try KeychainHelper.shared.save(date: expiration, for: expirationKey)
+            }
+        } catch {
+            log.error("\(error)")
         }
-        if let refreshToken = refreshToken {
-            try? KeychainHelper.shared.save(string: refreshToken, for: refreshTokenKey)
-        }
-        if let idToken = idToken {
-            try? KeychainHelper.shared.save(string: idToken, for: idTokenKey)
-        }
-        if let expiration = expirationDate {
-            try? KeychainHelper.shared.save(date: expiration, for: expirationKey)
-        }
+        
     }
     
     private func restoreAuthState() {
-        try? accessToken = KeychainHelper.shared.load(key: accessTokenKey)
-        try? refreshToken = KeychainHelper.shared.load(key: refreshTokenKey)
-        try? idToken = KeychainHelper.shared.load(key: idTokenKey)
-        try? expirationDate = KeychainHelper.shared.load(key: expirationKey)
-        try? codeVerifier = KeychainHelper.shared.load(key: codeVerifierKey)
-        try? email = KeychainHelper.shared.load(key: emailKey)
+        do {
+            accessToken = try KeychainHelper.shared.loadString(key: accessTokenKey)
+            refreshToken = try KeychainHelper.shared.loadString(key: refreshTokenKey)
+            idToken = try KeychainHelper.shared.loadString(key: idTokenKey)
+            expirationDate = try KeychainHelper.shared.loadDate(key: expirationKey)
+            codeVerifier = try KeychainHelper.shared.loadString(key: codeVerifierKey)
+            email = try KeychainHelper.shared.loadString(key: emailKey)
+        } catch {
+            log.error("\(error)")
+        }
+        
     }
     
     private func saveCodeVerifier(_ verifier: String) {
-        try? KeychainHelper.shared.save(string: verifier, for: codeVerifierKey)
+        do {
+            try KeychainHelper.shared.save(string: verifier, for: codeVerifierKey)
+        } catch {
+            log.error("\(error)")
+        }
     }
     
     private func clearAuthState() {
-        try? KeychainHelper.shared.delete(key: accessTokenKey)
-        try? KeychainHelper.shared.delete(key: refreshTokenKey)
-        try? KeychainHelper.shared.delete(key: idTokenKey)
-        try? KeychainHelper.shared.delete(key: expirationKey)
-        try? KeychainHelper.shared.delete(key: codeVerifierKey)
-        try? KeychainHelper.shared.delete(key: emailKey)
+        do {
+            try KeychainHelper.shared.delete(key: accessTokenKey)
+            try KeychainHelper.shared.delete(key: refreshTokenKey)
+            try KeychainHelper.shared.delete(key: idTokenKey)
+            try KeychainHelper.shared.delete(key: expirationKey)
+            try KeychainHelper.shared.delete(key: codeVerifierKey)
+            try KeychainHelper.shared.delete(key: emailKey)
+        } catch {
+            log.error("\(error)")
+        }
         
         accessToken = nil
         refreshToken = nil
@@ -307,37 +340,6 @@ extension OAuthManager: ASWebAuthenticationPresentationContextProviding {
             .compactMap { $0 as? UIWindowScene }
             .flatMap { $0.windows }
             .first { $0.isKeyWindow }!
-    }
-}
-
-extension OAuthManager {
-    var isLoggedIn: Bool {
-        accessToken != nil && (expirationDate?.timeIntervalSinceNow ?? 0) > 60
-    }
-    
-    func currentValidToken() async -> String {
-        if let expiration = expirationDate, expiration < Date() {
-            try? await refreshTokens()
-        }
-        
-        let externalAgent = OIDExternalUserAgentIOS(presenting: rootVC)
-        guard let token = accessToken else {
-            //throw OAuthError.unauthorised
-            return ""
-        }
-        
-        currentAuthorizationFlow = OIDAuthorizationService.present(
-            endSessionRequest,
-            externalUserAgent: externalAgent!
-        ) { @MainActor [weak self] response, error in
-            if let error = error {
-                log.error("Logout error: \(error.localizedDescription)")
-            } else {
-                log.info("Logged out successfully")
-                self?.authState = nil
-                self?.email = nil
-            }
-        return token
     }
 }
 
@@ -368,9 +370,6 @@ extension OAuthError: LocalizedError {
             return "No refresh token available. Please login again."
         }
     }
-    
-    func isAuthorised(user: String) -> Bool {
-        user == self.email ?? ""
 }
 
 extension Dictionary where Key == String, Value == String {
@@ -426,7 +425,7 @@ final class KeychainHelper {
     func save(data: Data, for key: String) throws {
         let attributesToSet: [String: Any] = [
             kSecValueData as String: data,
-            kSecAttrAccessible as String: accessibilityOption
+            kSecAttrAccessible as String: accessibilityOption,
         ]
         
         var addQuery: [String: Any] = [
@@ -506,32 +505,19 @@ final class KeychainHelper {
         return string
     }
     
-    func save<T: Codable>(value: T, for key: String) throws {
-        let data = try JSONEncoder().encode(value)
-        try save(data: data, for: key)
-    }
-    
-    func load<T: Codable>(key: String) throws -> T {
-        let data = try loadData(key: key)
-        return try JSONDecoder().decode(T.self, from: data)
-    }
-    
     func save(date: Date, for key: String) throws {
-        let data = try NSKeyedArchiver.archivedData(
-            withRootObject: date,
-            requiringSecureCoding: true
-        )
-        try save(data: data, for: key)
+        let timeInterval = date.timeIntervalSince1970
+        let data = String(timeInterval)
+        try save(string: data, for: key)
     }
     
     func loadDate(key: String) throws -> Date {
         let data = try loadData(key: key)
-        guard let date = try NSKeyedUnarchiver.unarchivedObject(
-            ofClass: NSDate.self,
-            from: data
-        ) as? Date else {
-            throw KeychainError.stringConversionFailed
+        guard let timeIntervalString = String(data: data, encoding: .utf8)
+                ,let timeInterval = TimeInterval(timeIntervalString) else {
+            log.error("Failed to convert data to string")
+            return Date()
         }
-        return date
+        return Date(timeIntervalSince1970: timeInterval)
     }
 }

@@ -13,65 +13,46 @@ import SwiftUI
         LessonsView(course: CourseDto.getMockData().first!)
     }
     .environment(OAuthManager.shared)
-    .environment(RefreshController())
     .environment(NetworkMonitor())
 }
 
-struct LessonsView: View {
+struct LessonsView: View, FallbackView {
+    typealias T = LessonDto
+        
     let course: CourseDto
     
-    @State var lessons: Set<LessonDto> = [] {
+    @Environment(NetworkMonitor.self) var networkMonitor
+    @Environment(RefreshController.self) var refreshController
+
+    @State var data: Set<LessonDto>? {
         didSet {
             groupedLessons =
-            lessons
+            data?
                 .sorted { $0.classDate > $1.classDate }
                 .reduce(into: [:]) {
                     $0[$1.status.rawValue, default: []].append($1)
-                }
+                } ?? [:]
         }
     }
     
     @State var pointsArray = [PointDto]()
-    
     @State var showCharts = false
     @State var showCreate = false
-    @State var hasRunInitialTask = false
-    @Environment(RefreshController.self) var refreshController
-    
+    @State var isExpanded = [false, true, true]
     @State var groupedLessons = [String: [LessonDto]]()
     
-    private func lessonActivity(for lesson: LessonDto) -> Double {
-        pointsArray.first{ $0.lesson == lesson }?.activityValue ?? 0
-    }
-    
-    func formattedDate(from date: Date) -> String {
-        return date.formatted(date: .abbreviated, time: .omitted)
+    @State var showApiError: Bool = false
+    @State var apiError: ApiError? {
+        didSet {
+            if networkMonitor.isConnected {
+                showApiError = true
+            }
+        }
     }
     
     nonisolated static let statusOrder = ["Future", "Declarations", "Past"]
-    
     let lessonStatusArray = LessonStatus.allCases
-    @State var isExpanded = [false, true, true]
-    
-    @Environment(NetworkMonitor.self) private var networkMonitor
-    
-    @State private var apiError: ApiError?
-    @State var lessonsHasLoaded = false
-    
-        var viewState: ViewState {
-            if !networkMonitor.isConnected && !lessonsHasLoaded {
-                return .offlineNotLoaded
-            } else if let error = apiError, networkMonitor.isConnected {
-                return .error(error)
-            } else if !lessonsHasLoaded {
-                return .loading
-            } else if groupedLessons.isEmpty {
-                return .empty
-            } else {
-                return .loaded
-            }
-        }
-    
+ 
     var body: some View {
         VStack {
             ZStack {
@@ -109,16 +90,12 @@ struct LessonsView: View {
                 }
             }
             .fallbackView(viewState: viewState, fetchData: fetchLessons)
-            .overlay {
-                if groupedLessons == [:] {
-                    ContentUnavailableView("No lessons", systemImage: "person.3")
-                }
-            }
             .overlay(alignment: .bottom) {
                 if showCreate {
-                    CreateLessonView(courseId: course.id, lessons: $lessons, showCreate: $showCreate)
+                    CreateLessonView(courseId: course.id, showCreate: $showCreate)
                         .transition(.slide)
                         .background(.thinMaterial)
+                        .environment(refreshController)
                 }
             }
         }
@@ -135,16 +112,11 @@ struct LessonsView: View {
             }
         }
         .task {
-            guard !hasRunInitialTask else {
-                return
-            }
             async let lessonsTask: () = fetchLessons()
             async let activityTask: () = fetchActivity()
             
             await lessonsTask
             await activityTask
-            
-            hasRunInitialTask = true
         }
         .toolbar {
             ToolbarItem {
@@ -173,14 +145,14 @@ struct LessonsView: View {
                 }
             }
         }
-        .onReceive(refreshController.refreshSignalExercises) { _ in
-            Task {
-                await fetchLessons()
-            }
-        }
         .onReceive(refreshController.refreshSignalActivity) { _ in
             Task {
                 await fetchActivity()
+            }
+        }
+        .onReceive(refreshController.refreshSignalLessons) { _ in
+            Task {
+                await fetchLessons()
             }
         }
         .onChange(of: networkMonitor.isConnected) {
@@ -192,33 +164,44 @@ struct LessonsView: View {
                 await activityTask
             }
         }
+        .errorAlert(isPresented: $showApiError, error: apiError)
         .navigationTitle("Lessons")
         .navigationBarTitleDisplayMode(.inline)
     }
     
     private func deleteLesson(lesson: LessonDto) async throws {
-        try await DBQuery.deleteLesson(lessonId: lesson.id)
+        try await DBQuery.deleteLesson(lessonId: lesson.id, courseId: course.id)
         
-        lessons.remove(lesson)
+        data?.remove(lesson)
+    }
+    
+    private func lessonActivity(for lesson: LessonDto) -> Double {
+        pointsArray.first{ $0.lesson == lesson }?.activityValue ?? 0
+    }
+    
+    private func formattedDate(from date: Date) -> String {
+        return date.formatted(date: .abbreviated, time: .omitted)
     }
     
     private func fetchLessons(forceRefresh: Bool = false) async {
 #if !targetEnvironment(simulator)
-        let lessons = try? await DBQuery.getAllLessons(courseId: course.id, forceRefresh: forceRefresh)
-        if let lessons = lessons {
-            self.lessons = Set(lessons)
+        do {
+            data = try await DBQuery.getAllLessons(courseId: course.id, forceRefresh: forceRefresh)
+        } catch {
+            apiError = error.mapToApiError()
         }
 #else
-        lessons = Set(LessonDto.getMockData())
+        data = Set(LessonDto.getMockData())
 #endif
     }
     
     private func fetchActivity(forceRefresh: Bool = false) async {
 #if !targetEnvironment(simulator)
-        let pointsArray = try? await DBQuery.getPointsForCourse(courseId: course.id, forceRefresh: forceRefresh)
-        if let pointsArray = pointsArray {
-            let reversedPointsArray: Array<PointDto> = pointsArray.reversed()
-            self.pointsArray = reversedPointsArray
+        do {
+            let pointsArray = try await DBQuery.getPointsForCourse(courseId: course.id, forceRefresh: forceRefresh)
+            self.pointsArray = pointsArray.reversed()
+        } catch {
+            apiError = error.mapToApiError()
         }
 #else
         pointsArray = PointDto.getMockData()
@@ -229,7 +212,7 @@ struct LessonsView: View {
     private func lessonView(for lesson: LessonDto, activity: Double) -> some View {
         if lesson.status == .past {
             //TODO: - EDGE CASE WHEN ASSIGNED BUT NOT so past :>
-            NavigationLink(destination: TasksAssignedView(title: formattedDate(from: lesson.classDate), lesson: lesson, activity: activity)) {
+            NavigationLink(destination: TasksAssignedView(title: formattedDate(from: lesson.classDate), lesson: lesson, courseId: course.id, activity: activity)                        .environment(refreshController)) {
                 HStack {
                     Text(formattedDate(from: lesson.classDate))
                         .font(.headline)
@@ -259,7 +242,7 @@ struct LessonsView: View {
             }
         } else {
             if OAuthManager.shared.isAuthorised(user: course.creator) {
-                NavigationLink(destination: TasksManagementView(lesson: lesson, exercises: lesson.exercises)) {
+                NavigationLink(destination: TasksManagementView(lesson: lesson)) {
                     Text(formattedDate(from: lesson.classDate))
                         .font(.headline)
                 }
@@ -273,23 +256,31 @@ struct LessonsView: View {
 
 struct CreateLessonView: View {
     let courseId: UUID
-    @Binding var lessons: Set<LessonDto>
     
     @Binding var showCreate: Bool
     
     @State var date: Date = Date()
     
+    @State var showApiError: Bool = false
+    @Environment(RefreshController.self) var refreshController
+
     var body: some View {
         HStack {
             DatePicker("Lesson Date", selection: $date, displayedComponents: .date)
             Button("Add") {
                 Task {
-                    if let newLesson = try? await DBQuery.manualAddLesson(courseId: courseId, date: date) {
-                        lessons.insert(newLesson)
+                do {
+                    try await DBQuery.manualAddLesson(courseId: courseId, date: date)
+                    refreshController.triggerRefreshLessons()
+                    withAnimation {
                         showCreate = false
                     }
+                } catch {
+                    showApiError = true
+                }
                 }
             }
+            .alert("Unable to add lesson", isPresented: $showApiError) {}
             .buttonStyle(.borderedProminent)
         }
         .padding()

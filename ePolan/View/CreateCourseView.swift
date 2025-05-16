@@ -19,7 +19,6 @@ struct CreateCourseView: View {
     @State private var selectedDays = Set<String>()
     @State private var emailInput = ""
     @State private var emails = Array<String>()
-    @State private var showingAlert = false
     @State private var startDate: Date = Date()
     @State private var endDate: Date = Date().addingTimeInterval(60 * 60 * 24 * 7)
     @State private var calendarWeekdaySymbols = Calendar.autoupdatingCurrent.shortWeekdaySymbols
@@ -30,6 +29,13 @@ struct CreateCourseView: View {
     }
     
     @Environment(\.dismiss) private var dismiss
+    
+    @State var showApiError = false
+    @State var apiError: ApiError? {
+        didSet {
+            showApiError = true
+        }
+    }
     
     var body: some View {
         Form {
@@ -63,7 +69,7 @@ struct CreateCourseView: View {
                     }
                 }
                 Stepper(value: $repeatInterval, in: 1...3) {
-                    Text("Every ") + Text(repeatInterval == 1 ? "Week" : "\(repeatInterval) Weeks")
+                    Text("Every") + Text(" ") + Text(repeatInterval == 1 ? "Week" : "\(repeatInterval) Weeks")
                 }
             }
             
@@ -75,11 +81,20 @@ struct CreateCourseView: View {
             
             // MARK: - Invite Students
             Section(header: Text("Invite")) {
-                TextField("Enter instructor email", text: $instructorEmail)
-                    .keyboardType(.emailAddress)
+                HStack {
+                    TextField("Enter instructor email", text: $instructorEmail)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                    if let email = OAuthManager.shared.email, instructorEmail != email {
+                        Button("Me") {
+                            instructorEmail = email
+                        }
+                    }
+                }
                 HStack {
                     TextField("Enter student email", text: $emailInput)
                         .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
                     Button("Add") {
                         emails.append(EmailHelper.trimCharacters(emailInput))
                         emailInput = ""
@@ -107,20 +122,21 @@ struct CreateCourseView: View {
                                 instructor: instructorEmail,
                                 swiftShortSymbols: selectedDays,
                                 students: Set(emails),
-                                startDateISO: startDate.ISO8601Format(),
-                                endDateISO: endDate.ISO8601Format(),
+                                startDate: startDate,
+                                endDate: endDate,
                                 frequency: repeatInterval
                             )
                             
                             
                             
-                            emails.append(OAuthManager.shared.email!)
-                            await withThrowingTaskGroup { group in
+                            try await withThrowingTaskGroup { group in
                                 for email in emails {
                                     group.addTask {
                                         try await DBQuery.addStudent(courseId: newCourse.id,email: EmailHelper.trimCharacters(email))
                                     }
                                 }
+                                
+                                try await group.waitForAll()
                             }
                             
                             
@@ -131,7 +147,7 @@ struct CreateCourseView: View {
                             dismiss()
                         } catch {
                             log.error("\(error)")
-                            showingAlert = true
+                            apiError = error.mapToApiError()
                         }
                     }
                 }
@@ -139,14 +155,8 @@ struct CreateCourseView: View {
             }
             
         }
+        .errorAlert(isPresented: $showApiError, error: apiError)
         .navigationTitle("Create Course")
         .navigationBarTitleDisplayMode(.inline)
-        .alert(isPresented: $showingAlert) {
-            Alert(
-                title: Text("Error"),
-                message: Text("An unexpected error occurred while creating the course"),
-                dismissButton: .default(Text("OK"))
-            )
-        }
     }
 }

@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    " " : {
+      "shouldTranslate" : false
+    },
     "%@ points" : {
       "localizations" : {
         "pl" : {
@@ -16,7 +19,7 @@
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld tygodni"
+            "value" : "%lld tydzień"
           }
         }
       }
@@ -93,9 +96,6 @@
         }
       }
     },
-    "An unexpected error occurred while creating the course" : {
-
-    },
     "Appearance" : {
       "localizations" : {
         "pl" : {
@@ -105,6 +105,12 @@
           }
         }
       }
+    },
+    "Archive" : {
+
+    },
+    "Archived Courses" : {
+
     },
     "Assigned 🎉" : {
       "localizations" : {
@@ -132,6 +138,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sprawdź przypisane zadania"
+          }
+        }
+      }
+    },
+    "Check your internet connection and try again." : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sprawdź swoje połączenie i spróbuj ponownie."
           }
         }
       }
@@ -289,17 +305,10 @@
         }
       }
     },
-    "Error" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Błąd"
-          }
-        }
-      }
+    "ePolan" : {
+      "shouldTranslate" : false
     },
-    "Every " : {
+    "Every" : {
       "localizations" : {
         "pl" : {
           "stringUnit" : {
@@ -409,6 +418,9 @@
         }
       }
     },
+    "Manage account" : {
+
+    },
     "Manage exercises" : {
       "localizations" : {
         "pl" : {
@@ -419,27 +431,10 @@
         }
       }
     },
-    "No courses" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Brak kursów"
-          }
-        }
-      }
+    "Me" : {
+
     },
-    "No declarations" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Brak deklaracji"
-          }
-        }
-      }
-    },
-    "No exercises" : {
+    "No exercises yet" : {
       "localizations" : {
         "pl" : {
           "stringUnit" : {
@@ -449,15 +444,22 @@
         }
       }
     },
-    "No exercises yet" : {
-
-    },
-    "No lessons" : {
+    "No Internet Connection" : {
       "localizations" : {
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Brak lekcji"
+            "value" : "Brak połączenia internetowego"
+          }
+        }
+      }
+    },
+    "No items yet" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brak elementów"
           }
         }
       }
@@ -482,9 +484,6 @@
         }
       }
     },
-    "OK" : {
-
-    },
     "Points" : {
       "localizations" : {
         "pl" : {
@@ -496,7 +495,14 @@
       }
     },
     "Points selector" : {
-
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wybieracz punktów"
+          }
+        }
+      }
     },
     "Points: %@" : {
       "localizations" : {
@@ -538,17 +544,35 @@
         }
       }
     },
-    "Saving error" : {
-
-    },
     "Show activity statistics" : {
-
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pokaż statystyki aktywności"
+          }
+        }
+      }
     },
     "Show course members" : {
-
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pokaż uczestników kursu"
+          }
+        }
+      }
     },
-    "Something went wrong. Try again later." : {
-
+    "Something went wrong!" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Coś poszło nie tak!"
+          }
+        }
+      }
     },
     "Start Date" : {
       "localizations" : {
@@ -559,6 +583,19 @@
           }
         }
       }
+    },
+    "Unable to add lesson" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie można dodać lekcji"
+          }
+        }
+      }
+    },
+    "Unarchive" : {
+
     },
     "User" : {
       "localizations" : {
@@ -595,7 +632,7 @@
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tydzień"
+            "value" : " Tydzień"
           }
         }
       }

@@ -8,74 +8,97 @@
 
 import SwiftUI
 
-struct TasksManagementView: View {
+struct TasksManagementView: View, FallbackView {
     @State var lesson: LessonDto
-    @State var exercises: Set<ExerciseDto>
+    @State var data: Set<ExerciseDto>?
     
-    @Environment(RefreshController.self) var refreshController
     @Environment(\.dismiss) private var dismiss
+    @Environment(NetworkMonitor.self) var networkMonitor
+    
+    @State var showApiError = false
+    @State var apiError: ApiError? {
+        didSet {
+            showApiError = true
+        }
+    }
     
     var body: some View {
         VStack {
-            if !exercises.isEmpty {
-                List(exercises.sortedByNumber(), id: \.id) { exercise in
-                    HStack {
-                        Text("\(exercise.exerciseNumber). \(exercise.subpoint ?? "")")
-                        Spacer()
-                        let siblings = exercises.filter {$0.exerciseNumber == exercise.exerciseNumber}
-                        let sortedSiblings = siblings.sorted { ($0.subpoint ?? "") < ($1.subpoint ?? "") }
-                        
-                        if siblings.count == 1 || sortedSiblings.last?.id == exercise.id {
-                            HStack {
-                                let isOnlyBaseLast = siblings.count == 1 && exercise.exerciseNumber == (exercises.map { $0.exerciseNumber }.max() ?? Int.min)
-                                if siblings.count > 1 || isOnlyBaseLast {
-                                    Button { removeExercise(for: exercise)} label: {
-                                        Image(systemName: "minus.diamond.fill")
+            if let data = data {
+                if !data.isEmpty {
+                    List(data.sortedByNumber(), id: \.id) { exercise in
+                        HStack {
+                            Text("\(exercise.exerciseNumber). \(exercise.subpoint ?? "")")
+                            Spacer()
+                            let siblings = data.filter {$0.exerciseNumber == exercise.exerciseNumber}
+                            let sortedSiblings = siblings.sorted { ($0.subpoint ?? "") < ($1.subpoint ?? "") }
+                            
+                            if siblings.count == 1 || sortedSiblings.last?.id == exercise.id {
+                                HStack {
+                                    let isOnlyBaseLast = siblings.count == 1 && exercise.exerciseNumber == (data.map { $0.exerciseNumber }.max() ?? Int.min)
+                                    if siblings.count > 1 || isOnlyBaseLast {
+                                        Button { removeExercise(for: exercise)} label: {
+                                            Image(systemName: "minus.diamond.fill")
+                                        }
+                                        .buttonStyle(.bordered)
+                                    }
+                                    Button { addSubpoint(to: exercise)} label: {
+                                        Image(systemName: "plus.diamond.fill")
                                     }
                                     .buttonStyle(.bordered)
                                 }
-                                Button { addSubpoint(to: exercise)} label: {
-                                    Image(systemName: "plus.diamond.fill")
-                                }
-                                .buttonStyle(.bordered)
                             }
                         }
                     }
+                } else {
+                    Text("No exercises yet")
                 }
-                
-            } else {
-                Text("No exercises yet")
+                Button("Add exercise") {
+                    addExercise()
+                }
+                .buttonStyle(.borderedProminent)
+                .padding()
             }
-            Button("Add exercise") {
-                addExercise()
-            }
-            .buttonStyle(.borderedProminent)
-            .padding()
         }
+        .fallbackView(viewState: viewState != .empty ? viewState : .loaded, fetchData: fetchData)
+        .errorAlert(isPresented: $showApiError, error: apiError)
         .navigationTitle("Manage exercises")
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
-                    lesson.exercises = exercises
-                    
                     Task {
-                        try await DBQuery.postExercises(lesson: lesson)
+                        do {
+                            lesson.exercises = data!
+                            try await DBQuery.postExercises(lesson: lesson)
+                            dismiss()
+                        } catch {
+                            apiError = error.mapToApiError()
+                        }
                     }
-                    refreshController.triggerRefreshExercises()
-                    
                 }
-                .disabled(lesson.exercises == exercises)
+                .disabled(lesson.exercises == data || data == nil)
             }
+        }
+        .task {
+            await fetchData()
+        }
+    }
+    
+    private func fetchData(forceRefresh: Bool = false) async {
+        do {
+            data = try await Set(DBQuery.getAllExercises(lessonId: lesson.id))
+        }  catch {
+            apiError = error.mapToApiError()
         }
     }
     
     private func addExercise() {
-        let index = (exercises.map(\.exerciseNumber).max() ?? 0) + 1
-        exercises = exercises.union([ExerciseDto(classDate: lesson.classDate, groupName: lesson.courseName, exerciseNumber: index, subpoint: nil)])
+        let index = (data!.map(\.exerciseNumber).max() ?? 0) + 1
+        data = data!.union([ExerciseDto(classDate: lesson.classDate, groupName: lesson.courseName, exerciseNumber: index, subpoint: nil)])
     }
     
     private func addSubpoint(to exercise: ExerciseDto) {
-        var set = exercises
+        var set = data!
         
         let siblings = set.filter { $0.exerciseNumber == exercise.exerciseNumber }
         
@@ -87,7 +110,7 @@ struct TasksManagementView: View {
             set.insert(first)
             let second = ExerciseDto(classDate: exercise.classDate, groupName: exercise.groupName, exerciseNumber:  exercise.exerciseNumber, subpoint: "b")
             set.insert(second)
-            exercises = set
+            data = set
             return
         }
         
@@ -114,13 +137,13 @@ struct TasksManagementView: View {
             }
         }
         
-        exercises = set
+        data = set
     }
     
     
     
     private func removeExercise(for exercise: ExerciseDto) {
-        var set = exercises
+        var set = data!
         
         set.remove(exercise)
         
@@ -133,6 +156,6 @@ struct TasksManagementView: View {
             set.insert(second)
         }
         
-        exercises = set
+        data = set
     }
 }

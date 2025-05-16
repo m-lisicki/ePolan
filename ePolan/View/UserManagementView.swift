@@ -21,49 +21,55 @@ struct UserManagementView: View {
     
     var body: some View {
         NavigationStack {
-            Form {
-                Section("User Info") {
-                    HStack {
-                        Label("Email", systemImage: "envelope")
-                        Spacer()
-                        Text(OAuthManager.shared.email ?? "")
-                            .foregroundColor(.secondary)
-                            .redacted(reason: OAuthManager.shared.email?.isEmpty ?? false ? .placeholder : [])
-                    }
-                    Button(role: .destructive) {
-                        oauth.logout()
-                    } label: {
+            ZStack {
+                BackgroundGradient()
+                Form {
+                    Section("User Info") {
                         HStack {
+                            Label("Email", systemImage: "envelope")
                             Spacer()
-                            Text("Logout")
-                            Spacer()
+                            Text(OAuthManager.shared.email ?? "")
+                                .foregroundColor(.secondary)
+                                .redacted(reason: OAuthManager.shared.email?.isEmpty ?? false ? .placeholder : [])
+                        }
+                        Link("Manage account", destination: URL(string: ("\(NetworkConstants.keycloakUrl)/realms/Users/account"))!)
+                        Button(role: .destructive) {
+                            oauth.logout()
+                        } label: {
+                            HStack {
+                                Spacer()
+                                Text("Logout")
+                                Spacer()
+                            }
+                        }
+                    }
+                    
+                    Section("Appearance") {
+                        ColorPicker("Accent Color", selection: $accentColor)
+                    }
+                    
+                    Section("Contact & Support") {
+                        Button {
+                            let urlString = "mailto:m.lsck@icloud.com?subject=ePolan: bug report"
+                            openURL(URL(string: urlString)!)
+                        } label: {
+                            HStack {
+                                Label("Report a Problem", systemImage: "exclamationmark.triangle")
+                            }
+                        }
+                        Button {
+                            let urlString = "mailto:m.lsck@icloud.com?subject=ePolan: feedback"
+                            openURL(URL(string: urlString)!)
+                        } label: {
+                            Label("Give Feedback", systemImage: "bubble.left.and.text.bubble.right")
                         }
                     }
                 }
-                
-                Section("Appearance") {
-                    ColorPicker("Accent Color", selection: $accentColor)
-                }
-                
-                Section("Contact & Support") {
-                    Button {
-                        let urlString = "mailto:m.lsck@icloud.com?subject=ePolan: bug report"
-                        openURL(URL(string: urlString)!)
-                    } label: {
-                        HStack {
-                            Label("Report a Problem", systemImage: "exclamationmark.triangle")
-                        }
-                    }
-                    Button {
-                        let urlString = "mailto:m.lsck@icloud.com?subject=ePolan: feedback"
-                        openURL(URL(string: urlString)!)
-                    } label: {
-                        Label("Give Feedback", systemImage: "bubble.left.and.text.bubble.right")
-                    }
-                }
+                .scrollContentBackground(.hidden)
+                .background(.ultraThinMaterial)
+                .navigationTitle("User Management")
+                .navigationBarTitleDisplayMode(.inline)
             }
-            .navigationTitle("User Management")
-            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }

@@ -8,16 +8,40 @@
 
 import SwiftUI
 
-struct CourseUsers: View {
+#Preview {
+    CourseUsers(course: CourseDto.getMockData().first!)
+        .environment(NetworkMonitor())
+}
+
+struct CourseUsers: View, FallbackView {
+    typealias T = String
+    
     let course: CourseDto
     
+    @State var data: Set<String>? {
+        didSet {
+            users = data?.sorted(by: <) ?? []
+        }
+    }
+    
     @State var users: Array<String> = []
-    @State var showingAlert = false
     @State var email: String = ""
     
     var currentUser: String {
         OAuthManager.shared.email ?? ""
     }
+    
+        
+    @State var showApiError: Bool = false
+    @State var apiError: ApiError? {
+        didSet {
+            if networkMonitor.isConnected {
+                showApiError = true
+            }
+        }
+    }
+    
+    @Environment(NetworkMonitor.self) var networkMonitor
     
     var body: some View {
         VStack {
@@ -35,12 +59,17 @@ struct CourseUsers: View {
                         }
                     }
             }
+            .errorAlert(isPresented: $showApiError, error: apiError)
+            .fallbackView(viewState: viewState, fetchData: fetchData)
             .listStyle(.plain)
             .padding()
             if OAuthManager.shared.isAuthorised(user: course.creator) {
                 HStack {
                     TextField("Email", text: $email)
                         .textFieldStyle(.roundedBorder)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                    
                     Button("Add") {
                         Task {
                             await addUser(email: EmailHelper.trimCharacters(email))
@@ -67,44 +96,46 @@ struct CourseUsers: View {
             }
             .padding()
         }
+        .onChange(of: networkMonitor.isConnected) {
+            Task {
+                await fetchData()
+            }
+        }
         .navigationTitle("Course users")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await fetchData()
-            
-        }
-        .alert(isPresented: $showingAlert) {
-            Alert(
-                title: Text("Error"),
-                message: Text("Something went with data fetching. Try again later."),
-                dismissButton: .default(Text("OK"))
-            )
         }
     }
     
-    func fetchData() async {
+    func fetchData(forceRefresh: Bool = false) async {
 #if !targetEnvironment(simulator)
         do {
-            let userSet = try await DBQuery.getAllStudents(courseId: course.id)
-            users = Array(userSet).sorted { $0 < $1 }
+            data = try await DBQuery.getAllStudents(courseId: course.id)
         } catch {
-            showingAlert = true
-            return
+            apiError = error.mapToApiError()
         }
 #else
-        users = ["Dr. Strangelove", "David Bowie", "Witkacy"]
+        data = Set(["Dr. Strangelove", "David Bowie", "Witkacy"])
 #endif
     }
     
     func addUser(email: String) async {
-        try? await DBQuery.addStudent(courseId: course.id, email: email)
-        
-        self.users.append(email)
-        self.email = ""
+        do {
+            try await DBQuery.addStudent(courseId: course.id, email: email)
+            data?.insert(email)
+            self.email = ""
+        } catch {
+            apiError = error.mapToApiError()
+        }
     }
     
     func removeUser(email: String) async {
-        try? await DBQuery.removeStudent(courseId: course.id, email: email)
-        self.users.removeAll { $0 == email }
+        do {
+            try await DBQuery.removeStudent(courseId: course.id, email: email)
+            self.users.removeAll { $0 == email }
+        } catch {
+            apiError = error.mapToApiError()
+        }
     }
 }
