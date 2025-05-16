@@ -40,46 +40,46 @@ final class RefreshController {
     }
 }
 
-import NotificationCenter
-
-struct NotificationCentre {
-    
-    static func scheduleCourseNotification(startDate: Date, endDate: Date, courseName: String, weekDay: Set<String>) {
-        let content = UNMutableNotificationContent()
-        content.title = "\(courseName) awaits"
-        content.body = "Don't forget to assign your declarations!"
-        content.sound = .default
-        
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-        
-        let shortWeekdaySymbols = Calendar.current.shortWeekdaySymbols
-        
-        for day in weekDay {
-            guard let targetWeekdayIndex = shortWeekdaySymbols.firstIndex(where: { $0.caseInsensitiveCompare(day) == .orderedSame }) else {
-                continue
-            }
-            
-            let targetWeekday = targetWeekdayIndex + 1
-            
-            let notificationWeekday = targetWeekday == 1 ? 7 : targetWeekday - 1
-            
-            var dateComponents = DateComponents()
-            dateComponents.weekday = notificationWeekday
-            dateComponents.hour = 18
-            dateComponents.minute = 0
-            
-            let identifier = "\(courseName)_\(day)_notification"
-            
-            let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
-            
-            let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
-            UNUserNotificationCenter.current().add(request) { error in
-                if let error = error {
-                    print("Notification scheduling failed: \(error)")
-                }
-            }
-        }
-    }
-    
-}
+//import NotificationCenter
+//
+//struct NotificationCentre {
+//    
+//    static func scheduleCourseNotification(startDate: Date, endDate: Date, courseName: String, weekDay: Set<String>) {
+//        let content = UNMutableNotificationContent()
+//        content.title = "\(courseName) awaits"
+//        content.body = "Don't forget to assign your declarations!"
+//        content.sound = .default
+//        
+//        let formatter = DateFormatter()
+//        formatter.locale = Locale.current
+//        
+//        let shortWeekdaySymbols = Calendar.current.shortWeekdaySymbols
+//        
+//        for day in weekDay {
+//            guard let targetWeekdayIndex = shortWeekdaySymbols.firstIndex(where: { $0.caseInsensitiveCompare(day) == .orderedSame }) else {
+//                continue
+//            }
+//            
+//            let targetWeekday = targetWeekdayIndex + 1
+//            
+//            let notificationWeekday = targetWeekday == 1 ? 7 : targetWeekday - 1
+//            
+//            var dateComponents = DateComponents()
+//            dateComponents.weekday = notificationWeekday
+//            dateComponents.hour = 18
+//            dateComponents.minute = 0
+//            
+//            let identifier = "\(courseName)_\(day)_notification"
+//            
+//            let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
+//            
+//            let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+//            UNUserNotificationCenter.current().add(request) { error in
+//                if let error = error {
+//                    print("Notification scheduling failed: \(error)")
+//                }
+//            }
+//        }
+//    }
+//    
+//}

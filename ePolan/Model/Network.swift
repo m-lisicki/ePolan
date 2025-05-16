@@ -111,8 +111,8 @@ struct DBQuery {
         do {
             return try ApiClient.shared.jsonDecoder.decode(T.self, from: validData)
         } catch {
-            print("Decoding Error for \(T.self): \(error)")
-            print("Received data: \(String(data: validData, encoding: .utf8) ?? "N/A")")
+            log.error("Decoding Error for \(T.self): \(error)")
+            log.info("Received data: \(String(data: validData, encoding: .utf8) ?? "N/A")")
             throw ApiError.decodingError(error)
         }
     }

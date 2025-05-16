@@ -58,7 +58,7 @@ struct TasksAssignedView: View {
                     .accessibilityLabel("Points selector")
             }
             .accessibilityValue("\(String(format: "%.1f", activity)) points")
-                .padding()
+            .padding()
         }
         .onChange(of: declarations) {
             if declarations.first(where: { $0.declarationStatus == .approved }) != nil && !reduceMotion {
