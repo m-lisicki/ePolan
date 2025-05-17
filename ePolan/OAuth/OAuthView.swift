@@ -20,7 +20,7 @@ struct SignInView: View {
     
     var body: some View {
         VStack(spacing: 20) {
-            Text(oauth.authState?.lastTokenResponse?.accessToken ?? "Not logged in")
+            Text("Not logged in")
                 .font(.headline)
             
             Button("Login") {

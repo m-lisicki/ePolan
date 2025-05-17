@@ -28,8 +28,8 @@ actor ApiClient {
     var sharedSession = URLSession(configuration: .default)
     
     private init() {
-        let memoryCapacity = 20 * 1024 * 1024 // 20 MB
-        let diskCapacity   = 100 * 1024 * 1024 // 100 MB
+        let memoryCapacity = 10 * 1024 * 1024 // 20 MB
+        let diskCapacity   = 20 * 1024 * 1024 // 100 MB
         let cache = URLCache(memoryCapacity: memoryCapacity,
                              diskCapacity: diskCapacity,
                              diskPath: "urlCache")
@@ -71,7 +71,7 @@ struct DBQuery {
     ) async throws -> URLRequest {
         var request = URLRequest(url: url)
         request.httpMethod = method.rawValue
-        request.setValue("Bearer \(await OAuthManager.shared.returnFreshToken())", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(await OAuthManager.shared.currentValidToken())", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.cachePolicy = forceRefresh ? .reloadIgnoringLocalCacheData : .useProtocolCachePolicy
         

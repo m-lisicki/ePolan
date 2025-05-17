@@ -114,7 +114,7 @@ struct CreateCourseView: View {
                             
                             
                             
-                            
+                            emails.append(OAuthManager.shared.email!)
                             await withThrowingTaskGroup { group in
                                 for email in emails {
                                     group.addTask {
