@@ -1,13 +1,13 @@
 {
-  "originHash" : "bd0d8bfa662fb161643ada9a5324b83d57c77069a831b7938029167f031bb3ab",
+  "originHash" : "015c03166a7d721a214df2599bf5afbd04bb1c881e66773c01f3918325beb233",
   "pins" : [
     {
-      "identity" : "appauth-ios",
+      "identity" : "atlantis",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/openid/AppAuth-iOS",
+      "location" : "https://github.com/ProxymanApp/atlantis",
       "state" : {
-        "revision" : "145104f5ea9d58ae21b60add007c33c1cc0c948e",
-        "version" : "2.0.0"
+        "revision" : "92ca545af63a4ff96eaeb8a662ffea29e1f47f08",
+        "version" : "1.28.0"
       }
     },
     {

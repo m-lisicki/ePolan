@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		2152FB042600AC8F00CF470E /* ePolan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2152FB032600AC8F00CF470E /* ePolan.swift */; };
-		D42E4BEB2DBE1A18008C804D /* AppAuth in Frameworks */ = {isa = PBXBuildFile; productRef = D42E4BEA2DBE1A18008C804D /* AppAuth */; };
+		D43184C92DD88E2C00BD5081 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = D43184C82DD88E2100BD5081 /* Localizable.xcstrings */; };
 		D461D2392DD22C9E0098BE54 /* ConfettiSwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = D461D2382DD22C9E0098BE54 /* ConfettiSwiftUI */; };
 		D4B693F02DD36497008EBDFC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 058557BA273AAA24004C7B11 /* Assets.xcassets */; };
 		D4B693F12DD36499008EBDFC /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 058557D8273AAEEB004C7B11 /* Preview Assets.xcassets */; };
@@ -18,6 +18,7 @@
 		058557BA273AAA24004C7B11 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		058557D8273AAEEB004C7B11 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		2152FB032600AC8F00CF470E /* ePolan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ePolan.swift; sourceTree = "<group>"; };
+		D43184C82DD88E2100BD5081 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		D4B693F22DD36536008EBDFC /* ePolan.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ePolan.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D4B694622DD36AB1008EBDFC /* ePolan.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ePolan.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -34,7 +35,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				D461D2392DD22C9E0098BE54 /* ConfettiSwiftUI in Frameworks */,
-				D42E4BEB2DBE1A18008C804D /* AppAuth in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -52,6 +52,7 @@
 		7555FF72242A565900829871 = {
 			isa = PBXGroup;
 			children = (
+				D43184C82DD88E2100BD5081 /* Localizable.xcstrings */,
 				7555FF7D242A565900829871 /* ePolan */,
 				D4B693F22DD36536008EBDFC /* ePolan.app */,
 			);
@@ -93,7 +94,6 @@
 			);
 			name = ePolan;
 			packageProductDependencies = (
-				D42E4BEA2DBE1A18008C804D /* AppAuth */,
 				D461D2382DD22C9E0098BE54 /* ConfettiSwiftUI */,
 			);
 			productName = iosApp;
@@ -123,10 +123,10 @@
 			knownRegions = (
 				en,
 				Base,
+				pl,
 			);
 			mainGroup = 7555FF72242A565900829871;
 			packageReferences = (
-				D42E4BE92DBE1A18008C804D /* XCRemoteSwiftPackageReference "AppAuth-iOS" */,
 				D461D2372DD22C9E0098BE54 /* XCRemoteSwiftPackageReference "ConfettiSwiftUI" */,
 			);
 			productRefGroup = 7555FF72242A565900829871;
@@ -145,6 +145,7 @@
 			files = (
 				D4B693F12DD36499008EBDFC /* Preview Assets.xcassets in Resources */,
 				D4B693F02DD36497008EBDFC /* Assets.xcassets in Resources */,
+				D43184C92DD88E2C00BD5081 /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -220,6 +221,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = ePolan;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 6.0;
 			};
@@ -276,6 +278,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = ePolan;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
@@ -307,7 +310,10 @@
 				PRODUCT_NAME = ePolan;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -339,7 +345,10 @@
 				PRODUCT_NAME = ePolan;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -369,14 +378,6 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		D42E4BE92DBE1A18008C804D /* XCRemoteSwiftPackageReference "AppAuth-iOS" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/openid/AppAuth-iOS";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.0.0;
-			};
-		};
 		D461D2372DD22C9E0098BE54 /* XCRemoteSwiftPackageReference "ConfettiSwiftUI" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/simibac/ConfettiSwiftUI.git";
@@ -388,11 +389,6 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		D42E4BEA2DBE1A18008C804D /* AppAuth */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = D42E4BE92DBE1A18008C804D /* XCRemoteSwiftPackageReference "AppAuth-iOS" */;
-			productName = AppAuth;
-		};
 		D461D2382DD22C9E0098BE54 /* ConfettiSwiftUI */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = D461D2372DD22C9E0098BE54 /* XCRemoteSwiftPackageReference "ConfettiSwiftUI" */;

@@ -7,11 +7,12 @@
 //
 
 import SwiftUI
-import AppAuth
+import AuthenticationServices
+import CryptoKit
 
 @Observable
 @MainActor
-final class OAuthManager: NSObject, OIDAuthStateChangeDelegate {
+final class OAuthManager: NSObject {
     @MainActor static let shared = OAuthManager()
     
     private override init() {
@@ -19,158 +20,364 @@ final class OAuthManager: NSObject, OIDAuthStateChangeDelegate {
         restoreAuthState()
     }
     
-    private let keychainKey = "OIDAuthState"
+    // Keychain keys
+    private let accessTokenKey = "accessToken"
+    private let refreshTokenKey = "refreshToken"
+    private let idTokenKey = "idToken"
+    private let expirationKey = "expiration"
+    private let codeVerifierKey = "codeVerifier"
+    private let emailKey = "userEmail"
     
-    var authState: OIDAuthState? {
-        didSet {
-            authState?.stateChangeDelegate = self
+    private var currentSession: ASWebAuthenticationSession?
+    
+    let clientID = "ClassMatcher"
+    let clientSecret = ""
+    let redirectURI = "com.baklava://oauthredirect"
+    
+    var email: String?
+    private var accessToken: String?
+    private var refreshToken: String?
+    private var idToken: String?
+    private var expirationDate: Date?
+    private var codeVerifier: String?
+    
+    private let authURL = URL(string: "http://\(NetworkConstants.ip):8280/realms/Users/protocol/openid-connect/auth")!
+    private let tokenURL = URL(string: "http://\(NetworkConstants.ip):8280/realms/Users/protocol/openid-connect/token")!
+    private let logoutURL = URL(string: "http://\(NetworkConstants.ip):8280/realms/Users/protocol/openid-connect/logout")!
+    private let userInfoURL = URL(string: "http://\(NetworkConstants.ip):8280/realms/Users/protocol/openid-connect/userinfo")!
+    
+    // MARK: - Authorization Flow
+    func authorize() {
+        let codeVerifier = generateCodeVerifier()
+        let codeChallenge = generateCodeChallenge(from: codeVerifier)
+        
+        var components = URLComponents(url: authURL, resolvingAgainstBaseURL: true)!
+        components.queryItems = [
+            URLQueryItem(name: "response_type", value: "code"),
+            URLQueryItem(name: "client_id", value: clientID),
+            URLQueryItem(name: "redirect_uri", value: redirectURI),
+            URLQueryItem(name: "scope", value: "openid profile"),
+            URLQueryItem(name: "code_challenge", value: codeChallenge),
+            URLQueryItem(name: "code_challenge_method", value: "S256")
+        ]
+        
+        guard let authURL = components.url else {
+            log.error("Invalid authorization URL")
+            return
+        }
+        
+        self.codeVerifier = codeVerifier
+        saveCodeVerifier(codeVerifier)
+        
+        currentSession = ASWebAuthenticationSession(
+            url: authURL,
+            callbackURLScheme: "com.baklava"
+        ) { [weak self] callbackURL, error in
+            guard let self = self else { return }
+            
+            if let error = error {
+                log.error("Authorization failed: \(error.localizedDescription)")
+                return
+            }
+            
+            guard let callbackURL = callbackURL,
+                  let code = self.parseCode(from: callbackURL) else {
+                log.error("Invalid callback URL")
+                return
+            }
+            
             Task {
-                await saveAuthState()
+                await self.exchangeCodeForTokens(code: code)
+            }
+        }
+        
+        currentSession?.presentationContextProvider = self
+        currentSession?.start()
+    }
+    
+    // MARK: - Token Exchange
+    private func exchangeCodeForTokens(code: String) async {
+        guard let codeVerifier = codeVerifier else {
+            log.error("Missing code verifier")
+            return
+        }
+        
+        var request = URLRequest(url: tokenURL)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        
+        let body = [
+            "grant_type": "authorization_code",
+            "client_id": clientID,
+            "code": code,
+            "redirect_uri": redirectURI,
+            "code_verifier": codeVerifier
+        ].formURLEncoded()
+        
+        request.httpBody = body
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(for: request)
+            let response = try JSONDecoder().decode(OAuthTokenResponse.self, from: data)
+            
+            Task { @MainActor in
+                self.accessToken = response.access_token
+                self.refreshToken = response.refresh_token
+                self.idToken = response.id_token
+                self.expirationDate = Date().addingTimeInterval(TimeInterval(response.expires_in))
+                
+                self.saveAuthState()
+                self.fetchUserEmail()
+            }
+        } catch {
+            log.error("Token exchange failed: \(error.localizedDescription)")
+        }
+    }
+    
+    // MARK: - Token Refresh
+    private func refreshTokens() async throws {
+        guard let refreshToken = refreshToken else {
+            throw OAuthError.missingRefreshToken
+        }
+        
+        var request = URLRequest(url: tokenURL)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        
+        let body = [
+            "grant_type": "refresh_token",
+            "client_id": clientID,
+            "refresh_token": refreshToken
+        ].formURLEncoded()
+        
+        request.httpBody = body
+        
+        let (data, _) = try await URLSession.shared.data(for: request)
+        let response = try JSONDecoder().decode(OAuthTokenResponse.self, from: data)
+        
+        await MainActor.run {
+            self.accessToken = response.access_token
+            self.refreshToken = response.refresh_token ?? self.refreshToken
+            self.expirationDate = Date().addingTimeInterval(TimeInterval(response.expires_in))
+            self.saveAuthState()
+        }
+    }
+    
+    // MARK: - User Info
+    private func fetchUserEmail() {
+        Task {
+            guard let accessToken = accessToken else { return }
+            
+            var request = URLRequest(url: userInfoURL)
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            
+            do {
+                let (data, _) = try await URLSession.shared.data(for: request)
+                let userInfo = try JSONDecoder().decode(UserInfo.self, from: data)
+                
+                Task { @MainActor in
+                    self.email = userInfo.email
+                    try KeychainHelper.shared.save(string: userInfo.email, for: emailKey)
+                }
+            } catch {
+                log.error("Failed to fetch user email: \(error.localizedDescription)")
             }
         }
     }
     
-    private var currentAuthorizationFlow: OIDExternalUserAgentSession?
-    
-    let clientID = "ClassMatcher"
-    let clientSecret = ""
-    let redirectURI = URL(string: "com.baklava:/oauthredirect")!
-    
-    var email: String?
-    
-    let configuration = OIDServiceConfiguration(
-        authorizationEndpoint: URL(string: "http://\(NetworkConstants.ip):8280/realms/Users/protocol/openid-connect/auth")!,
-        tokenEndpoint: URL(string: "http://\(NetworkConstants.ip):8280/realms/Users/protocol/openid-connect/token")!,
-        issuer: URL(string: "http://\(NetworkConstants.ip):8280/realms/Users")!,
-        registrationEndpoint: nil,
-        endSessionEndpoint: URL(string: "http://\(NetworkConstants.ip):8280/realms/Users/protocol/openid-connect/logout")!
-    )
-    
-    // MARK: – Persistence
-    
-    private func saveAuthState() async {
-        guard let state = authState else {
-            try? KeychainHelper.shared.delete(key: keychainKey)
+    // MARK: - Logout
+    func logout() {
+        guard let idToken = idToken else {
+            clearAuthState()
             return
         }
-        do {
-            let data = try NSKeyedArchiver.archivedData(withRootObject: state, requiringSecureCoding: true)
-            try KeychainHelper.shared.save(data, for: keychainKey)
-        } catch {
-            log.error("Keychain save failed: \(error)")
+        
+        var components = URLComponents(url: logoutURL, resolvingAgainstBaseURL: true)!
+        components.queryItems = [
+            URLQueryItem(name: "id_token_hint", value: idToken),
+            URLQueryItem(name: "post_logout_redirect_uri", value: redirectURI)
+        ]
+        
+        guard let logoutURL = components.url else {
+            log.error("Invalid logout URL")
+            return
+        }
+        
+        currentSession = ASWebAuthenticationSession(
+            url: logoutURL,
+            callbackURLScheme: "com.baklava"
+        ) { [weak self] _, error in
+            if let error = error {
+                log.error("Logout failed: \(error.localizedDescription)")
+            } else {
+                self?.clearAuthState()
+            }
+        }
+        
+        currentSession?.presentationContextProvider = self
+        currentSession?.start()
+    }
+    
+    // MARK: - Token Management
+    func useFreshToken() async -> String {
+        if let expiration = expirationDate, expiration < Date() {
+            do {
+                try await refreshTokens()
+            } catch {
+                log.error("Token refresh failed: \(error)")
+                return ""
+            }
+        }
+        return accessToken ?? ""
+    }
+    
+    // MARK: - PKCE Generation
+    private func generateCodeVerifier() -> String {
+        var buffer = [UInt8](repeating: 0, count: 32)
+        _ = SecRandomCopyBytes(kSecRandomDefault, buffer.count, &buffer)
+        return Data(buffer).base64URLEncodedString()
+    }
+    
+    private func generateCodeChallenge(from verifier: String) -> String {
+        let data = Data(verifier.utf8)
+        let hash = SHA256.hash(data: data)
+        return Data(hash).base64URLEncodedString()
+    }
+    
+    // MARK: - URL Parsing
+    private func parseCode(from url: URL) -> String? {
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        return components?.queryItems?.first(where: { $0.name == "code" })?.value
+    }
+    
+    // MARK: - State Management
+    private func saveAuthState() {
+        if let accessToken = accessToken {
+            try? KeychainHelper.shared.save(string: accessToken, for: accessTokenKey)
+        }
+        if let refreshToken = refreshToken {
+            try? KeychainHelper.shared.save(string: refreshToken, for: refreshTokenKey)
+        }
+        if let idToken = idToken {
+            try? KeychainHelper.shared.save(string: idToken, for: idTokenKey)
+        }
+        if let expiration = expirationDate {
+            try? KeychainHelper.shared.save(date: expiration, for: expirationKey)
         }
     }
     
     private func restoreAuthState() {
-        guard let data = KeychainHelper.shared.load(key: keychainKey), let state = try? NSKeyedUnarchiver.unarchivedObject(ofClass: OIDAuthState.self, from: data)
-        else { return }
-        
-        self.authState = state
-        
-        Task {
-            self.email = try await DBQuery.getUserEmail()
-        }
+        try? accessToken = KeychainHelper.shared.load(key: accessTokenKey)
+        try? refreshToken = KeychainHelper.shared.load(key: refreshTokenKey)
+        try? idToken = KeychainHelper.shared.load(key: idTokenKey)
+        try? expirationDate = KeychainHelper.shared.load(key: expirationKey)
+        try? codeVerifier = KeychainHelper.shared.load(key: codeVerifierKey)
+        try? email = KeychainHelper.shared.load(key: emailKey)
     }
     
-    // MARK: - OIDAuthStateChangeDelegate Methods
-    
-    nonisolated func didChange(_ state: OIDAuthState) {
-        log.info("OIDAuthState did change. Persisting updated state to Keychain...")
-        Task {
-            await saveAuthState()
-        }
+    private func saveCodeVerifier(_ verifier: String) {
+        try? KeychainHelper.shared.save(string: verifier, for: codeVerifierKey)
     }
     
-    // MARK: - Ensure Fresh Tokens
-    func returnFreshToken() async -> String {
-        await withCheckedContinuation { continuation in
-            authState?.performAction { accessToken, idToken, error in
-                if let token = accessToken {
-                    continuation.resume(returning: token)
-                } else {
-                    continuation.resume(returning: "")
-                }
-            }
-        }
-    }
-    
-    // MARK: — START FLOW
-    func authorize() {
-        guard authState == nil else { return }
+    private func clearAuthState() {
+        try? KeychainHelper.shared.delete(key: accessTokenKey)
+        try? KeychainHelper.shared.delete(key: refreshTokenKey)
+        try? KeychainHelper.shared.delete(key: idTokenKey)
+        try? KeychainHelper.shared.delete(key: expirationKey)
+        try? KeychainHelper.shared.delete(key: codeVerifierKey)
+        try? KeychainHelper.shared.delete(key: emailKey)
         
-        let request = OIDAuthorizationRequest(configuration: configuration,
-                                              clientId: clientID,
-                                              clientSecret: clientSecret,
-                                              scopes: [OIDScopeOpenID, OIDScopeProfile],
-                                              redirectURL: redirectURI,
-                                              responseType: OIDResponseTypeCode,
-                                              additionalParameters: nil)
-        
-        log.info("🔑 Initiating authorization with scopes: \(request.scope ?? "none")")
-        
-        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene, let rootVC = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController else {
-            log.error("Unable to retrieve the root view controller.")
-            return
-        }
-        
-        let externalAgent = OIDExternalUserAgentIOS(presenting: rootVC)
-        
-        // Perform the auth request
-        self.currentAuthorizationFlow = OIDAuthState.authState(
-            byPresenting: request,
-            externalUserAgent: externalAgent!
-        ) { @MainActor [weak self] state, error in
-            if let error = error {
-                log.error("Authorization error: \(error.localizedDescription)")
-            } else if let state = state {
-                self?.authState = state
-                Task {
-                    self?.email = try await DBQuery.getUserEmail()
-                }
-            } else {
-                log.error("Unknown authorization error")
-            }
-            
-        }
-    }
-    
-    func logout() {
-        guard let idToken = authState?.lastTokenResponse?.idToken else {
-            log.warning("No ID token found for logout.")
-            self.authState = nil
-            return
-        }
-        
-        let endSessionRequest = OIDEndSessionRequest(
-            configuration: configuration,
-            idTokenHint: idToken,
-            postLogoutRedirectURL: redirectURI,
-            additionalParameters: nil
-        )
-        
-        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene, let rootVC = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController else {
-            log.error("Unable to retrieve the root view controller.")
-            return
-        }
-        
-        let externalAgent = OIDExternalUserAgentIOS(presenting: rootVC)
-        
-        currentAuthorizationFlow = OIDAuthorizationService.present(
-            endSessionRequest,
-            externalUserAgent: externalAgent!
-        ) { @MainActor [weak self] response, error in
-            if let error = error {
-                log.error("Logout error: \(error.localizedDescription)")
-            } else {
-                log.info("Logged out successfully")
-                self?.authState = nil
-                self?.email = nil
-            }
-        }
+        accessToken = nil
+        refreshToken = nil
+        idToken = nil
+        expirationDate = nil
+        codeVerifier = nil
+        email = nil
     }
     
     func isAuthorised(user: String) -> Bool {
         user == self.email ?? ""
+    }
+}
+
+// MARK: - Extensions
+extension OAuthManager: ASWebAuthenticationPresentationContextProviding {
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first { $0.isKeyWindow }!
+    }
+}
+
+extension OAuthManager {
+    var isLoggedIn: Bool {
+        accessToken != nil && (expirationDate?.timeIntervalSinceNow ?? 0) > 60
+    }
+    
+    func currentValidToken() async -> String {
+        if let expiration = expirationDate, expiration < Date() {
+            try? await refreshTokens()
+        }
+        
+        guard let token = accessToken else {
+            //throw OAuthError.unauthorised
+            return ""
+        }
+        
+        return token
+    }
+}
+
+
+struct OAuthTokenResponse: Decodable {
+    let access_token: String
+    let refresh_token: String?
+    let id_token: String?
+    let expires_in: Int
+    let token_type: String
+}
+
+struct UserInfo: Decodable {
+    let email: String
+}
+
+enum OAuthError: Error {
+    case missingRefreshToken
+    case unauthorised
+}
+
+extension OAuthError: LocalizedError {
+    var errorDescription: String? {
+        switch self {
+        case .unauthorised:
+            return "Session expired. Please re-authenticate."
+        case .missingRefreshToken:
+            return "No refresh token available. Please login again."
+        }
+    }
+}
+
+extension Dictionary where Key == String, Value == String {
+    func formURLEncoded() -> Data {
+        map { "\($0)=\($1.urlEncoded)" }
+            .joined(separator: "&")
+            .data(using: .utf8)!
+    }
+}
+
+extension String {
+    var urlEncoded: String {
+        addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
+    }
+}
+
+extension Data {
+    func base64URLEncodedString() -> String {
+        base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
     }
 }
 
@@ -194,7 +401,14 @@ final class KeychainHelper {
         self.service = service
     }
     
-    func save(_ data: Data, for key: String) throws {
+    enum KeychainError: Error {
+        case stringConversionFailed
+        case unexpectedStatus(OSStatus)
+        case itemNotFound
+    }
+    
+    // MARK: - Generic Data Handling
+    func save(data: Data, for key: String) throws {
         let attributesToSet: [String: Any] = [
             kSecValueData as String: data,
             kSecAttrAccessible as String: accessibilityOption
@@ -209,7 +423,6 @@ final class KeychainHelper {
         
         var status = SecItemAdd(addQuery as CFDictionary, nil)
         
-        // If duplicate found - update
         if status == errSecDuplicateItem {
             let searchQuery: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
@@ -221,12 +434,11 @@ final class KeychainHelper {
         }
         
         guard status == errSecSuccess else {
-            // TODO: - THROW
-            return
+            throw KeychainError.unexpectedStatus(status)
         }
     }
     
-    func load(key: String) -> Data? {
+    func loadData(key: String) throws -> Data {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -238,12 +450,12 @@ final class KeychainHelper {
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
         
-        guard status == errSecSuccess else {
-            return nil
+        guard status != errSecItemNotFound else {
+            throw KeychainError.itemNotFound
         }
         
-        guard let data = item as? Data else {
-            return nil
+        guard status == errSecSuccess, let data = item as? Data else {
+            throw KeychainError.unexpectedStatus(status)
         }
         
         return data
@@ -259,8 +471,52 @@ final class KeychainHelper {
         let status = SecItemDelete(query as CFDictionary)
         
         guard status == errSecSuccess || status == errSecItemNotFound else {
-            // TODO: - THROW
-            return
+            throw KeychainError.unexpectedStatus(status)
         }
+    }
+    
+    // MARK: - Type-Specific Helpers
+    func save(string: String, for key: String) throws {
+        guard let data = string.data(using: .utf8) else {
+            throw KeychainError.stringConversionFailed
+        }
+        try save(data: data, for: key)
+    }
+    
+    func loadString(key: String) throws -> String {
+        let data = try loadData(key: key)
+        guard let string = String(data: data, encoding: .utf8) else {
+            throw KeychainError.stringConversionFailed
+        }
+        return string
+    }
+    
+    func save<T: Codable>(value: T, for key: String) throws {
+        let data = try JSONEncoder().encode(value)
+        try save(data: data, for: key)
+    }
+    
+    func load<T: Codable>(key: String) throws -> T {
+        let data = try loadData(key: key)
+        return try JSONDecoder().decode(T.self, from: data)
+    }
+    
+    func save(date: Date, for key: String) throws {
+        let data = try NSKeyedArchiver.archivedData(
+            withRootObject: date,
+            requiringSecureCoding: true
+        )
+        try save(data: data, for: key)
+    }
+    
+    func loadDate(key: String) throws -> Date {
+        let data = try loadData(key: key)
+        guard let date = try NSKeyedUnarchiver.unarchivedObject(
+            ofClass: NSDate.self,
+            from: data
+        ) as? Date else {
+            throw KeychainError.stringConversionFailed
+        }
+        return date
     }
 }

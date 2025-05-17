@@ -18,11 +18,13 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(OAuthManager.self) var oauth: OAuthManager
+    @State private var alertMessage: String?
+
     
     var body: some View {
         VStack {
 #if !targetEnvironment(simulator)
-            if oauth.authState == nil {
+            if !oauth.isLoggedIn {
                 SignInView()
             } else {
                 BottomBarView()
