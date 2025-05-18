@@ -32,9 +32,7 @@ struct TasksAssignedView: View, FallbackView {
     @State var showApiError: Bool = false
     @State var apiError: ApiError? {
         didSet {
-            if networkMonitor.isConnected {
                 showApiError = true
-            }
         }
     }
     
@@ -106,7 +104,9 @@ struct TasksAssignedView: View, FallbackView {
         do {
             data = try await DBQuery.getAllLessonDeclarations(lessonId: lesson.id, forceRefresh: forceRefresh)
         } catch {
-            apiError = error.mapToApiError()
+            if forceRefresh && !networkMonitor.isConnected || networkMonitor.isConnected {
+                apiError = error.mapToApiError()
+            }
         }
 #else
         data = Set(DeclarationDto.getMockData())

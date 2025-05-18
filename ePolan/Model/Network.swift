@@ -71,7 +71,7 @@ struct DBQuery {
     enum HTTPMethod: String {
         case GET, POST, PUT, DELETE
     }
-    
+        
     private static func makeRequest(
         url: URL,
         method: HTTPMethod,
@@ -81,7 +81,8 @@ struct DBQuery {
     ) async throws -> URLRequest {
         var request = URLRequest(url: url)
         request.httpMethod = method.rawValue
-        request.setValue("Bearer \(await OAuthManager.shared.useFreshToken())", forHTTPHeaderField: "Authorization")
+        let freshToken = await NetworkMonitor().isConnected ? await OAuthManager.shared.useFreshToken() : ""
+        request.setValue("Bearer \(freshToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.cachePolicy = forceRefresh ? .reloadIgnoringLocalCacheData : .useProtocolCachePolicy
         
@@ -117,17 +118,10 @@ struct DBQuery {
         body: Encodable? = nil,
         forceRefresh: Bool = false
     ) async throws -> T {
-        do {
-            let request = try await makeRequest(url: url, method: method, body: body, forceRefresh: forceRefresh)
-            
-            let (data, response) = try await ApiClient.shared.sharedSession.data(for: request)
-            
-            let validData = try validate(data: data, response: response)
-   
-            return try ApiClient.shared.jsonDecoder.decode(T.self, from: validData)
-        } catch {
-            throw ApiError.requestError(error)
-        }
+        let request = try await makeRequest(url: url, method: method, body: body, forceRefresh: forceRefresh)
+        let (data, response) = try await ApiClient.shared.sharedSession.data(for: request)
+        let validData = try validate(data: data, response: response)
+        return try ApiClient.shared.jsonDecoder.decode(T.self, from: validData)
     }
     
     private static func send(

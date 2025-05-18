@@ -107,10 +107,24 @@
       }
     },
     "Archive" : {
-
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zarchiwizuj"
+          }
+        }
+      }
     },
     "Archived Courses" : {
-
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archiwum"
+          }
+        }
+      }
     },
     "Assigned 🎉" : {
       "localizations" : {
@@ -419,7 +433,14 @@
       }
     },
     "Manage account" : {
-
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zarządzaj kontem"
+          }
+        }
+      }
     },
     "Manage exercises" : {
       "localizations" : {
@@ -432,7 +453,14 @@
       }
     },
     "Me" : {
-
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To ja"
+          }
+        }
+      }
     },
     "No exercises yet" : {
       "localizations" : {
@@ -595,7 +623,14 @@
       }
     },
     "Unarchive" : {
-
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przywróć"
+          }
+        }
+      }
     },
     "User" : {
       "localizations" : {

@@ -29,9 +29,7 @@ struct TasksAssignView: View, FallbackView {
     @State var showApiError: Bool = false
     @State var apiError: ApiError? {
         didSet {
-            if networkMonitor.isConnected {
                 showApiError = true
-            }
         }
     }
     
@@ -98,10 +96,10 @@ struct TasksAssignView: View, FallbackView {
             selection = Set(data?.filter { $0.declarationStatus == .waiting }.compactMap(\.exercise) ?? [])
             
             initialSelection = selection
-            
-            apiError = nil
         } catch {
-            apiError = error.mapToApiError()
+            if forceRefresh && !networkMonitor.isConnected || networkMonitor.isConnected {
+                apiError = error.mapToApiError()
+            }
         }
     }
     

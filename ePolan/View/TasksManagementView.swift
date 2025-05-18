@@ -88,7 +88,9 @@ struct TasksManagementView: View, FallbackView {
         do {
             data = try await Set(DBQuery.getAllExercises(lessonId: lesson.id))
         }  catch {
-            apiError = error.mapToApiError()
+            if forceRefresh && !networkMonitor.isConnected || networkMonitor.isConnected {
+                apiError = error.mapToApiError()
+            }
         }
     }
     

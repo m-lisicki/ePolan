@@ -35,9 +35,7 @@ struct CourseUsers: View, FallbackView {
     @State var showApiError: Bool = false
     @State var apiError: ApiError? {
         didSet {
-            if networkMonitor.isConnected {
-                showApiError = true
-            }
+            showApiError = true
         }
     }
     
@@ -104,7 +102,9 @@ struct CourseUsers: View, FallbackView {
         .navigationTitle("Course users")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            await fetchData()
+            if networkMonitor.isConnected {
+                await fetchData()
+            }
         }
     }
     
@@ -113,7 +113,9 @@ struct CourseUsers: View, FallbackView {
         do {
             data = try await DBQuery.getAllStudents(courseId: course.id)
         } catch {
-            apiError = error.mapToApiError()
+            if forceRefresh && !networkMonitor.isConnected || networkMonitor.isConnected {
+                apiError = error.mapToApiError()
+            }
         }
 #else
         data = Set(["Dr. Strangelove", "David Bowie", "Witkacy"])

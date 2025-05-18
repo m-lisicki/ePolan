@@ -44,9 +44,7 @@ struct LessonsView: View, FallbackView {
     @State var showApiError: Bool = false
     @State var apiError: ApiError? {
         didSet {
-            if networkMonitor.isConnected {
                 showApiError = true
-            }
         }
     }
     
@@ -188,7 +186,9 @@ struct LessonsView: View, FallbackView {
         do {
             data = try await DBQuery.getAllLessons(courseId: course.id, forceRefresh: forceRefresh)
         } catch {
-            apiError = error.mapToApiError()
+            if forceRefresh && !networkMonitor.isConnected || networkMonitor.isConnected {
+                apiError = error.mapToApiError()
+            }
         }
 #else
         data = Set(LessonDto.getMockData())
@@ -201,7 +201,9 @@ struct LessonsView: View, FallbackView {
             let pointsArray = try await DBQuery.getPointsForCourse(courseId: course.id, forceRefresh: forceRefresh)
             self.pointsArray = pointsArray.reversed()
         } catch {
-            apiError = error.mapToApiError()
+            if forceRefresh && !networkMonitor.isConnected || networkMonitor.isConnected {
+                apiError = error.mapToApiError()
+            }
         }
 #else
         pointsArray = PointDto.getMockData()

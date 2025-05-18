@@ -65,11 +65,13 @@ extension ApiError: LocalizedError {
 }
 
 extension Error {
-    func mapToApiError() -> ApiError {
+    func mapToApiError() -> ApiError? {
         if let apiError = self as? ApiError {
             return apiError
+        } else if (self as NSError).code == NSURLErrorCancelled {
+            return nil
         } else {
-            return .customError("Unexpected error: \(self.localizedDescription)")
+            return .customError("Oh boy: \(self.localizedDescription)")
         }
     }
 }
@@ -102,8 +104,11 @@ extension View {
 
 extension View {
     func errorAlert(isPresented: Binding<Bool>, error: ApiError?) -> some View {
-        self.alert(isPresented: isPresented) {
-            Alert(title: Text("Something went wrong!"), message: Text(error?.localizedDescription ?? "An unknown error occurred."))
+        if let error = error {
+            return AnyView(self.alert(isPresented: isPresented) {
+                Alert(title: Text("Something went wrong!"), message: Text(error.localizedDescription))
+            })
         }
+        return AnyView(self)
     }
 }

@@ -33,9 +33,7 @@ struct CourseView: View, FallbackView {
     @State var showApiError: Bool = false
     @State var apiError: ApiError? {
         didSet {
-            if networkMonitor.isConnected {
-                showApiError = true
-            }
+            showApiError = true
         }
     }
     
@@ -154,7 +152,9 @@ struct CourseView: View, FallbackView {
         do {
             data = try await DBQuery.getAllCourses(forceRefresh: forceRefresh)
         }  catch {
-            apiError = error.mapToApiError()
+            if forceRefresh && !networkMonitor.isConnected || networkMonitor.isConnected {
+                apiError = error.mapToApiError()
+            }
         }
 #else
         data = Set(CourseDto.getMockData())
@@ -199,9 +199,7 @@ struct ArchivedCoursesView: View, FallbackView {
     @State var showApiError: Bool = false
     @State var apiError: ApiError? {
         didSet {
-            if networkMonitor.isConnected {
-                showApiError = true
-            }
+               showApiError = true
         }
     }
     
@@ -242,7 +240,9 @@ struct ArchivedCoursesView: View, FallbackView {
         do {
             data = try await DBQuery.getArchivedCourses()
         } catch {
-            apiError = error.mapToApiError()
+            if forceRefresh && !networkMonitor.isConnected || networkMonitor.isConnected {
+                apiError = error.mapToApiError()
+            }
         }
 #else
         data = Set(CourseDto.getMockData())
