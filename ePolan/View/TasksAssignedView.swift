@@ -3,7 +3,6 @@
 //  ePolan
 //
 //  Created by Michał Lisicki on 30/04/2025.
-//  Copyright © 2025 orgName. All rights reserved.
 //
 
 import SwiftUI
@@ -12,7 +11,6 @@ import ConfettiSwiftUI
 
 #Preview {
     TasksAssignedView(title: "Get Back!", lesson: LessonDto.getMockData().first!, courseId: UUID(), activity: 0.0)
-        .environment(OAuthManager.shared)
         .environment(NetworkMonitor())
         .environment(RefreshController())
 }
@@ -30,13 +28,7 @@ struct TasksAssignedView: View, FallbackView {
     @State var activityTask: Task<Void, Never>?
     
     @State var showApiError: Bool = false
-    @State var apiError: ApiError? {
-        didSet {
-            if networkMonitor.isConnected {
-                showApiError = true
-            }
-        }
-    }
+    @State var apiError: ApiError?
     
     @State var isConfettiActivated = false
         
@@ -57,7 +49,7 @@ struct TasksAssignedView: View, FallbackView {
                 }
             }
             .refreshable {
-                await fetchData()
+                await fetchData(forceRefresh: true)
             }
             .confettiCannon(trigger: $isConfettiActivated)
             Stepper(value: Binding<Double>(get:{self.activity},set:{self.activity = $0}), in: 0...5, step: 0.5) {
@@ -67,7 +59,7 @@ struct TasksAssignedView: View, FallbackView {
             .accessibilityValue("\(String(format: "%.1f", activity)) points")
             .padding()
         }
-        .fallbackView(viewState: viewState, fetchData: fetchData)
+        .fallbackView(viewState: viewState)
         .onChange(of: data) {
             if data?.first(where: { $0.declarationStatus == .approved }) != nil && !reduceMotion {
                 isConfettiActivated.toggle()
@@ -101,12 +93,14 @@ struct TasksAssignedView: View, FallbackView {
         .navigationBarTitleDisplayMode(.inline)
     }
     
-    private func fetchData(forceRefresh: Bool = false) async {
+    func fetchData(forceRefresh: Bool = false) async {
 #if !targetEnvironment(simulator)
-        do {
-            data = try await DBQuery.getAllLessonDeclarations(lessonId: lesson.id, forceRefresh: forceRefresh)
-        } catch {
-            apiError = error.mapToApiError()
+        await fetchData(
+            forceRefresh: forceRefresh,
+            fetchOperation: { try await DBQuery.getAllLessonDeclarations(lessonId: lesson.id, forceRefresh: forceRefresh) },
+            onError: { error in self.apiError = error }
+        ) {
+            data in self.data = data
         }
 #else
         data = Set(DeclarationDto.getMockData())

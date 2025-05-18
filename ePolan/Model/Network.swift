@@ -1,9 +1,8 @@
 //
-//  definitions.swift
+//  Network.swift
 //  ePolan
 //
 //  Created by Michał Lisicki on 10/05/2025.
-//  Copyright © 2025 orgName. All rights reserved.
 //
 
 
@@ -15,7 +14,7 @@ struct NetworkConstants {
     #if targetEnvironment(simulator)
     static let ip = "localhost"
     #else
-    static let ip = "192.168.254.134"
+    static let ip = "192.168.254.102"
     #endif
     static let baseUrl = "http://\(ip):8080"
     static let keycloakUrl = "http://\(ip):8280"
@@ -23,9 +22,9 @@ struct NetworkConstants {
 
 // MARK: - API Client and Services
 
-actor ApiClient {
+final class ApiClient: Sendable {
     static let shared = ApiClient()
-    var sharedSession = URLSession(configuration: .default)
+    let sharedSession: URLSession
     private let cache: URLCache
     
     private init() {
@@ -38,6 +37,8 @@ actor ApiClient {
         let config = URLSessionConfiguration.default
         config.urlCache = cache
         config.requestCachePolicy = .useProtocolCachePolicy
+        config.waitsForConnectivity = true
+        config.timeoutIntervalForRequest = 30
         
         sharedSession = URLSession(configuration: config)
     }
@@ -50,14 +51,14 @@ actor ApiClient {
             cache.removeAllCachedResponses()
         }
     
-    let jsonDecoder: JSONDecoder = {
+    static let jsonDecoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .useDefaultKeys
         decoder.dateDecodingStrategy = .iso8601
         return decoder
     }()
     
-    let jsonEncoder: JSONEncoder = {
+    static let jsonEncoder: JSONEncoder = {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .useDefaultKeys
         encoder.outputFormatting = .prettyPrinted
@@ -81,14 +82,14 @@ struct DBQuery {
     ) async throws -> URLRequest {
         var request = URLRequest(url: url)
         request.httpMethod = method.rawValue
-        request.setValue("Bearer \(await OAuthManager.shared.useFreshToken())", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.cachePolicy = forceRefresh ? .reloadIgnoringLocalCacheData : .useProtocolCachePolicy
+        request.assumesHTTP3Capable = true
         
         if let payload = body {
-            request.httpBody = try ApiClient.shared.jsonEncoder.encode(payload)
+            request.httpBody = try ApiClient.jsonEncoder.encode(payload)
         }
-        
+        request.setValue("Bearer \(await OAuthManager.shared.useFreshToken())", forHTTPHeaderField: "Authorization")
         return request
     }
     
@@ -117,17 +118,10 @@ struct DBQuery {
         body: Encodable? = nil,
         forceRefresh: Bool = false
     ) async throws -> T {
-        do {
-            let request = try await makeRequest(url: url, method: method, body: body, forceRefresh: forceRefresh)
-            
-            let (data, response) = try await ApiClient.shared.sharedSession.data(for: request)
-            
-            let validData = try validate(data: data, response: response)
-   
-            return try ApiClient.shared.jsonDecoder.decode(T.self, from: validData)
-        } catch {
-            throw ApiError.requestError(error)
-        }
+        let request = try await makeRequest(url: url, method: method, body: body, forceRefresh: forceRefresh)
+        let (data, response) = try await ApiClient.shared.sharedSession.data(for: request)
+        let validData = try validate(data: data, response: response)
+        return try ApiClient.jsonDecoder.decode(T.self, from: validData)
     }
     
     private static func send(

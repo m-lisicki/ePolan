@@ -3,23 +3,21 @@
 //  ePolan
 //
 //  Created by Michał Lisicki on 27/04/2025.
-//  Copyright © 2025 orgName. All rights reserved.
 //
 
 
 import SwiftUI
 
-#Preview {
-    NavigationStack {
-        SignInView()
-            .environment(OAuthManager.shared)
-    }
-}
+//#Preview {
+//    NavigationStack {
+//        SignInView()
+//    }
+//}
 
 struct SignInView: View {
-    @State private var showLogin = false
-    @Environment(OAuthManager.self) private var oauth: OAuthManager
-    
+    @State var showLogin = false
+    @State private var isPerformingTask = false
+
     var body: some View {
         ZStack {
             BackgroundGradient()
@@ -38,8 +36,13 @@ struct SignInView: View {
                         .cornerRadius(5)
                     
                     Button("Login") {
-                        oauth.authorize()
+                        isPerformingTask = true
+                        Task {
+                            await OAuthManager.shared.authorize()
+                            isPerformingTask = false
+                        }
                     }
+                    .disabled(isPerformingTask)
                     .buttonStyle(.borderedProminent)
                 }
                 .padding()

@@ -3,7 +3,6 @@
 //  ePolan
 //
 //  Created by Michał Lisicki on 27/04/2025.
-//  Copyright © 2025 orgName. All rights reserved.
 //
 
 import SwiftUI
@@ -12,8 +11,21 @@ import CryptoKit
 
 @Observable
 @MainActor
+final class UserInformation {
+    static let shared = UserInformation()
+    private init() {}
+    
+    var email: String?
+    var isLoggedIn: Bool = false
+    
+    func isAuthorised(user: String) -> Bool {
+        user == self.email ?? ""
+    }
+}
+
+@MainActor
 final class OAuthManager: NSObject {
-    @MainActor static let shared = OAuthManager()
+    static let shared = OAuthManager()
     
     private override init() {
         super.init()
@@ -21,21 +33,29 @@ final class OAuthManager: NSObject {
     }
     
     // Keychain keys
-    private let accessTokenKey = "accessToken"
-    private let refreshTokenKey = "refreshToken"
-    private let idTokenKey = "idToken"
-    private let expirationKey = "expiration"
-    private let codeVerifierKey = "codeVerifier"
-    private let emailKey = "userEmail"
+    static private let accessTokenKey = "accessToken"
+    static private let refreshTokenKey = "refreshToken"
+    static private let idTokenKey = "idToken"
+    static private let expirationKey = "expiration"
+    static private let codeVerifierKey = "codeVerifier"
+    static private let emailKey = "userEmail"
     
     private var currentSession: ASWebAuthenticationSession?
     
-    let clientID = "ClassMatcher"
-    let clientSecret = ""
-    let redirectURI = "com.baklava://oauthredirect"
+    static private let clientID = "ClassMatcher"
+    static private let clientSecret = ""
+    static private let redirectURI = "com.baklava://oauthredirect"
     
-    var email: String?
-    var accessToken: String?
+    private var accessToken: String? {
+        didSet {
+            if accessToken != nil {
+                UserInformation.shared.isLoggedIn = true
+            } else {
+                UserInformation.shared.isLoggedIn = false
+            }
+        }
+    }
+    
     private var refreshToken: String?
     private var idToken: String?
     private var expirationDate: Date?
@@ -43,34 +63,34 @@ final class OAuthManager: NSObject {
     
     private struct AuthEndpoints {
         private static let baseURLString = "\(NetworkConstants.keycloakUrl)/realms/Users/protocol/openid-connect"
-
+        
         static var authURL: URL {
             URL(string: "\(baseURLString)/auth")!
         }
-
+        
         static var tokenURL: URL {
             URL(string: "\(baseURLString)/token")!
         }
-
+        
         static var logoutURL: URL {
             URL(string: "\(baseURLString)/logout")!
         }
-
+        
         static var userInfoURL: URL {
             URL(string: "\(baseURLString)/userinfo")!
         }
     }
     
     // MARK: - Authorization Flow
-    func authorize() {
+    func authorize() async {
         let codeVerifier = generateCodeVerifier()
         let codeChallenge = generateCodeChallenge(from: codeVerifier)
         
         var components = URLComponents(url: AuthEndpoints.authURL, resolvingAgainstBaseURL: true)!
         components.queryItems = [
             URLQueryItem(name: "response_type", value: "code"),
-            URLQueryItem(name: "client_id", value: clientID),
-            URLQueryItem(name: "redirect_uri", value: redirectURI),
+            URLQueryItem(name: "client_id", value: OAuthManager.clientID),
+            URLQueryItem(name: "redirect_uri", value: OAuthManager.redirectURI),
             URLQueryItem(name: "scope", value: "openid profile"),
             URLQueryItem(name: "code_challenge", value: codeChallenge),
             URLQueryItem(name: "code_challenge_method", value: "S256")
@@ -123,9 +143,9 @@ final class OAuthManager: NSObject {
         
         let body = [
             "grant_type": "authorization_code",
-            "client_id": clientID,
+            "client_id": OAuthManager.clientID,
             "code": code,
-            "redirect_uri": redirectURI,
+            "redirect_uri": OAuthManager.redirectURI,
             "code_verifier": codeVerifier
         ].formURLEncoded()
         
@@ -135,15 +155,12 @@ final class OAuthManager: NSObject {
             let (data, _) = try await URLSession.shared.data(for: request)
             let response = try JSONDecoder().decode(OAuthTokenResponse.self, from: data)
             
-            Task { @MainActor in
-                self.accessToken = response.access_token
-                self.refreshToken = response.refresh_token
-                self.idToken = response.id_token
-                self.expirationDate = Date().addingTimeInterval(TimeInterval(response.expires_in))
-                
-                self.saveAuthState()
-                self.fetchUserEmail()
-            }
+            self.accessToken = response.access_token
+            self.refreshToken = response.refresh_token
+            self.idToken = response.id_token
+            self.expirationDate = Date().addingTimeInterval(TimeInterval(response.expires_in))
+            self.saveAuthState()
+            await self.fetchUserEmail()
         } catch {
             log.error("Token exchange failed: \(error.localizedDescription)")
         }
@@ -161,42 +178,51 @@ final class OAuthManager: NSObject {
         
         let body = [
             "grant_type": "refresh_token",
-            "client_id": clientID,
+            "client_id": OAuthManager.clientID,
             "refresh_token": refreshToken
         ].formURLEncoded()
         
         request.httpBody = body
         
-        let (data, _) = try await URLSession.shared.data(for: request)
-        let response = try JSONDecoder().decode(OAuthTokenResponse.self, from: data)
         
-        Task { @MainActor in
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw OAuthError.somethingJustWentWrong
+        }
+        
+        if httpResponse.statusCode == 200 {
+            let response = try JSONDecoder().decode(OAuthTokenResponse.self, from: data)
             self.accessToken = response.access_token
             self.refreshToken = response.refresh_token ?? self.refreshToken
             self.expirationDate = Date().addingTimeInterval(TimeInterval(response.expires_in))
             self.saveAuthState()
+        } else {
+            let keycloakError = try? JSONDecoder().decode(KeycloakError.self, from: data)
+            if let keycloakError = keycloakError {
+                throw OAuthError.keycloakError(error: keycloakError.error, description: keycloakError.error_description)
+            } else {
+                throw OAuthError.somethingJustWentWrong
+            }
         }
     }
     
     // MARK: - User Info
-    private func fetchUserEmail() {
-        Task {
-            guard let accessToken = accessToken else { return }
-            
-            var request = URLRequest(url: AuthEndpoints.userInfoURL)
-            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-            
-            do {
-                let (data, _) = try await URLSession.shared.data(for: request)
-                let userInfo = try JSONDecoder().decode(UserInfo.self, from: data)
-                
-                Task { @MainActor in
-                    self.email = userInfo.email
-                    try KeychainHelper.shared.save(string: userInfo.email, for: emailKey)
-                }
-            } catch {
-                log.error("Failed to fetch user email: \(error.localizedDescription)")
+    private func fetchUserEmail() async {
+        guard let accessToken = accessToken else { return }
+        
+        var request = URLRequest(url: AuthEndpoints.userInfoURL)
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(for: request)
+            let userInfo = try JSONDecoder().decode(UserInfo.self, from: data)
+            Task(priority: .background) { @MainActor in
+                UserInformation.shared.email = userInfo.email
             }
+            try KeychainHelper.shared.save(string: userInfo.email, for: OAuthManager.emailKey)
+        } catch {
+            log.error("Failed to fetch user email: \(error.localizedDescription)")
         }
     }
     
@@ -210,7 +236,7 @@ final class OAuthManager: NSObject {
         var components = URLComponents(url: AuthEndpoints.logoutURL, resolvingAgainstBaseURL: true)!
         components.queryItems = [
             URLQueryItem(name: "id_token_hint", value: idToken),
-            URLQueryItem(name: "post_logout_redirect_uri", value: redirectURI)
+            URLQueryItem(name: "post_logout_redirect_uri", value: OAuthManager.redirectURI)
         ]
         
         guard let logoutURL = components.url else {
@@ -235,12 +261,26 @@ final class OAuthManager: NSObject {
     
     // MARK: - Token Management
     func useFreshToken() async -> String {
-        if let expiration = expirationDate, expiration < Date() {
+        if let expiration = expirationDate, expiration < Date() + 50 {
             do {
                 try await refreshTokens()
+            } catch let error as OAuthError {
+                switch error {
+                case .keycloakError(let errorCode, _):
+                    if errorCode == "invalid_grant" {
+                        log.error("Token refresh failed: \(errorCode)")
+                        clearAuthState()
+                    } else {
+                        log.error("Unhandled Authorisation Error: \(error.localizedDescription)")
+                    }
+                case .missingRefreshToken:
+                    log.error("Token refresh failed: \(error.localizedDescription)")
+                    clearAuthState()
+                case .somethingJustWentWrong:
+                    log.error("Something just went wrong: \(error.localizedDescription)")
+                }
             } catch {
-                log.error("Token refresh failed: \(error)")
-                clearAuthState()
+                log.error("Unhandled Authorisation Error: \(error.localizedDescription)")
             }
         }
         return accessToken ?? ""
@@ -269,16 +309,16 @@ final class OAuthManager: NSObject {
     private func saveAuthState() {
         do {
             if let accessToken = accessToken {
-                try KeychainHelper.shared.save(string: accessToken, for: accessTokenKey)
+                try KeychainHelper.shared.save(string: accessToken, for: OAuthManager.accessTokenKey)
             }
             if let refreshToken = refreshToken {
-                try KeychainHelper.shared.save(string: refreshToken, for: refreshTokenKey)
+                try KeychainHelper.shared.save(string: refreshToken, for: OAuthManager.refreshTokenKey)
             }
             if let idToken = idToken {
-                try KeychainHelper.shared.save(string: idToken, for: idTokenKey)
+                try KeychainHelper.shared.save(string: idToken, for: OAuthManager.idTokenKey)
             }
             if let expiration = expirationDate {
-                try KeychainHelper.shared.save(date: expiration, for: expirationKey)
+                try KeychainHelper.shared.save(date: expiration, for: OAuthManager.expirationKey)
             }
         } catch {
             log.error("\(error)")
@@ -288,21 +328,20 @@ final class OAuthManager: NSObject {
     
     private func restoreAuthState() {
         do {
-            accessToken = try KeychainHelper.shared.loadString(key: accessTokenKey)
-            refreshToken = try KeychainHelper.shared.loadString(key: refreshTokenKey)
-            idToken = try KeychainHelper.shared.loadString(key: idTokenKey)
-            expirationDate = try KeychainHelper.shared.loadDate(key: expirationKey)
-            codeVerifier = try KeychainHelper.shared.loadString(key: codeVerifierKey)
-            email = try KeychainHelper.shared.loadString(key: emailKey)
+            accessToken = try KeychainHelper.shared.loadString(key: OAuthManager.accessTokenKey)
+            refreshToken = try KeychainHelper.shared.loadString(key: OAuthManager.refreshTokenKey)
+            idToken = try KeychainHelper.shared.loadString(key: OAuthManager.idTokenKey)
+            expirationDate = try KeychainHelper.shared.loadDate(key: OAuthManager.expirationKey)
+            codeVerifier = try KeychainHelper.shared.loadString(key: OAuthManager.codeVerifierKey)
+            UserInformation.shared.email = try KeychainHelper.shared.loadString(key: OAuthManager.emailKey)
         } catch {
             log.error("\(error)")
         }
-        
     }
     
     private func saveCodeVerifier(_ verifier: String) {
         do {
-            try KeychainHelper.shared.save(string: verifier, for: codeVerifierKey)
+            try KeychainHelper.shared.save(string: verifier, for: OAuthManager.codeVerifierKey)
         } catch {
             log.error("\(error)")
         }
@@ -310,12 +349,12 @@ final class OAuthManager: NSObject {
     
     private func clearAuthState() {
         do {
-            try KeychainHelper.shared.delete(key: accessTokenKey)
-            try KeychainHelper.shared.delete(key: refreshTokenKey)
-            try KeychainHelper.shared.delete(key: idTokenKey)
-            try KeychainHelper.shared.delete(key: expirationKey)
-            try KeychainHelper.shared.delete(key: codeVerifierKey)
-            try KeychainHelper.shared.delete(key: emailKey)
+            try KeychainHelper.shared.delete(key: OAuthManager.accessTokenKey)
+            try KeychainHelper.shared.delete(key: OAuthManager.refreshTokenKey)
+            try KeychainHelper.shared.delete(key: OAuthManager.idTokenKey)
+            try KeychainHelper.shared.delete(key: OAuthManager.expirationKey)
+            try KeychainHelper.shared.delete(key: OAuthManager.codeVerifierKey)
+            try KeychainHelper.shared.delete(key: OAuthManager.emailKey)
         } catch {
             log.error("\(error)")
         }
@@ -325,11 +364,9 @@ final class OAuthManager: NSObject {
         idToken = nil
         expirationDate = nil
         codeVerifier = nil
-        email = nil
-    }
-    
-    func isAuthorised(user: String) -> Bool {
-        user == self.email ?? ""
+        Task(priority: .background) { @MainActor in
+            UserInformation.shared.email = nil
+        }
     }
 }
 
@@ -352,24 +389,19 @@ struct OAuthTokenResponse: Decodable {
     let token_type: String
 }
 
+struct KeycloakError: Decodable {
+    let error: String
+    let error_description: String?
+}
+
 struct UserInfo: Decodable {
     let email: String
 }
 
 enum OAuthError: Error {
     case missingRefreshToken
-    case unauthorised
-}
-
-extension OAuthError: LocalizedError {
-    var errorDescription: String? {
-        switch self {
-        case .unauthorised:
-            return "Session expired. Please re-authenticate."
-        case .missingRefreshToken:
-            return "No refresh token available. Please login again."
-        }
-    }
+    case keycloakError(error: String, description: String?)
+    case somethingJustWentWrong
 }
 
 extension Dictionary where Key == String, Value == String {
@@ -404,13 +436,10 @@ extension View {
 
 import Security
 
-@MainActor
-final class KeychainHelper {
+final class KeychainHelper: Sendable {
     static let shared = KeychainHelper()
     
     private let service: String
-    private let accessibilityOption = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-    
     private init(service: String = "com.baklava.oauth") {
         self.service = service
     }
@@ -425,7 +454,7 @@ final class KeychainHelper {
     func save(data: Data, for key: String) throws {
         let attributesToSet: [String: Any] = [
             kSecValueData as String: data,
-            kSecAttrAccessible as String: accessibilityOption,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
         
         var addQuery: [String: Any] = [

@@ -6,18 +6,15 @@ let log = Logger()
 
 @main
 struct EPolan: App {
-    var oauth = OAuthManager.shared
-    var networkMonitor = NetworkMonitor()
     
     init() {
+        _ = OAuthManager.shared
         Atlantis.start()
     }
     
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environment(oauth)
-                .environment(networkMonitor)
         }
     }
 }

@@ -3,19 +3,16 @@
 //  ePolan
 //
 //  Created by Michał Lisicki on 27/04/2025.
-//  Copyright © 2025 orgName. All rights reserved.
 //
 
 import SwiftUI
 
-#Preview {
-    @Previewable @State var accentColor: Color = .accent
-    UserManagementView(accentColor: $accentColor)
-        .environment(OAuthManager.shared)
-}
+//#Preview {
+//    @Previewable @State var accentColor: Color = .accent
+//    UserManagementView(accentColor: $accentColor)
+//}
 
 struct UserManagementView: View {
-    @Environment(OAuthManager.self) private var oauth
     @Environment(\.openURL) var openURL
     @Binding var accentColor: Color
     
@@ -28,13 +25,13 @@ struct UserManagementView: View {
                         HStack {
                             Label("Email", systemImage: "envelope")
                             Spacer()
-                            Text(OAuthManager.shared.email ?? "")
+                            Text(UserInformation.shared.email ?? "")
                                 .foregroundColor(.secondary)
-                                .redacted(reason: OAuthManager.shared.email?.isEmpty ?? false ? .placeholder : [])
+                                .redacted(reason: UserInformation.shared.email?.isEmpty ?? false ? .placeholder : [])
                         }
                         Link("Manage account", destination: URL(string: ("\(NetworkConstants.keycloakUrl)/realms/Users/account"))!)
                         Button(role: .destructive) {
-                            oauth.logout()
+                            OAuthManager.shared.logout()
                         } label: {
                             HStack {
                                 Spacer()

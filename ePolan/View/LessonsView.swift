@@ -3,7 +3,6 @@
 //  ePolan
 //
 //  Created by Michał Lisicki on 30/04/2025.
-//  Copyright © 2025 orgName. All rights reserved.
 //
 
 import SwiftUI
@@ -12,11 +11,10 @@ import SwiftUI
     NavigationStack {
         LessonsView(course: CourseDto.getMockData().first!)
     }
-    .environment(OAuthManager.shared)
     .environment(NetworkMonitor())
 }
 
-struct LessonsView: View, FallbackView {
+struct LessonsView: View, FallbackView, PostData {
     typealias T = LessonDto
         
     let course: CourseDto
@@ -41,14 +39,9 @@ struct LessonsView: View, FallbackView {
     @State var isExpanded = [false, true, true]
     @State var groupedLessons = [String: [LessonDto]]()
     
-    @State var showApiError: Bool = false
-    @State var apiError: ApiError? {
-        didSet {
-            if networkMonitor.isConnected {
-                showApiError = true
-            }
-        }
-    }
+    @State var apiError: ApiError?
+    @State var isPutOngoing = false
+    @State var showApiError = false
     
     nonisolated static let statusOrder = ["Future", "Declarations", "Past"]
     let lessonStatusArray = LessonStatus.allCases
@@ -65,10 +58,15 @@ struct LessonsView: View, FallbackView {
                                     ForEach(groupedLessons[lessonStatusArray[i].rawValue] ?? [], id: \.self) { lesson in
                                         lessonView(for: lesson, activity: lessonActivity(for: lesson))
                                             .swipeActions {
-                                                if OAuthManager.shared.isAuthorised(user: course.creator) {
+                                                if UserInformation.shared.isAuthorised(user: course.creator) {
                                                     Button("Delete", role: .destructive) {
                                                         Task {
-                                                            try await deleteLesson(lesson: lesson)
+                                                            do {
+                                                                try await deleteLesson(lesson: lesson)
+                                                            } catch {
+                                                                apiError = error.mapToApiError()
+                                                                showApiError = true
+                                                            }
                                                         }
                                                     }
                                                     .tint(.red)
@@ -88,8 +86,9 @@ struct LessonsView: View, FallbackView {
                     await fetchLessons(forceRefresh: true)
                     await fetchActivity(forceRefresh: true)
                 }
+                .errorAlert(isPresented: $showApiError, error: apiError)
             }
-            .fallbackView(viewState: viewState, fetchData: fetchLessons)
+            .fallbackView(viewState: viewState)
             .overlay(alignment: .bottom) {
                 if showCreate {
                     CreateLessonView(courseId: course.id, showCreate: $showCreate)
@@ -128,12 +127,12 @@ struct LessonsView: View, FallbackView {
                 .accessibilityLabel("Show activity statistics")
             }
             ToolbarItem {
-                NavigationLink(destination: CourseUsers(course: course)) {
-                    Image(systemName: OAuthManager.shared.isAuthorised(user: course.creator) ? "person.2.badge.gearshape" : "person.2").symbolRenderingMode(.palette)
+                NavigationLink(destination: CourseUsersView(course: course)) {
+                    Image(systemName: UserInformation.shared.isAuthorised(user: course.creator) ? "person.2.badge.gearshape" : "person.2").symbolRenderingMode(.palette)
                 }
                 .accessibilityLabel("Show course members")
             }
-            if OAuthManager.shared.isAuthorised(user: course.creator) {
+            if UserInformation.shared.isAuthorised(user: course.creator) {
                 ToolbarItem {
                     Button(action: {
                         withAnimation {
@@ -164,44 +163,46 @@ struct LessonsView: View, FallbackView {
                 await activityTask
             }
         }
-        .errorAlert(isPresented: $showApiError, error: apiError)
         .navigationTitle("Lessons")
         .navigationBarTitleDisplayMode(.inline)
     }
     
-    private func deleteLesson(lesson: LessonDto) async throws {
+    func deleteLesson(lesson: LessonDto) async throws {
         try await DBQuery.deleteLesson(lessonId: lesson.id, courseId: course.id)
         
         data?.remove(lesson)
     }
     
-    private func lessonActivity(for lesson: LessonDto) -> Double {
+    func lessonActivity(for lesson: LessonDto) -> Double {
         pointsArray.first{ $0.lesson == lesson }?.activityValue ?? 0
     }
     
-    private func formattedDate(from date: Date) -> String {
+    func formattedDate(from date: Date) -> String {
         return date.formatted(date: .abbreviated, time: .omitted)
     }
     
-    private func fetchLessons(forceRefresh: Bool = false) async {
+    func fetchLessons(forceRefresh: Bool = false) async {
 #if !targetEnvironment(simulator)
-        do {
-            data = try await DBQuery.getAllLessons(courseId: course.id, forceRefresh: forceRefresh)
-        } catch {
-            apiError = error.mapToApiError()
+        await fetchData(
+            forceRefresh: forceRefresh,
+            fetchOperation: { try await DBQuery.getAllLessons(courseId: course.id, forceRefresh: forceRefresh) },
+            onError: { error in self.apiError = error }
+        ) {
+            data in self.data = data
         }
 #else
         data = Set(LessonDto.getMockData())
 #endif
     }
     
-    private func fetchActivity(forceRefresh: Bool = false) async {
+    func fetchActivity(forceRefresh: Bool = false) async {
 #if !targetEnvironment(simulator)
-        do {
-            let pointsArray = try await DBQuery.getPointsForCourse(courseId: course.id, forceRefresh: forceRefresh)
-            self.pointsArray = pointsArray.reversed()
-        } catch {
-            apiError = error.mapToApiError()
+        await fetchData(
+            forceRefresh: forceRefresh,
+            fetchOperation: { try await DBQuery.getPointsForCourse(courseId: course.id, forceRefresh: forceRefresh) },
+            onError: { error in self.apiError = error }
+        ) {
+            data in self.pointsArray = data.reversed()
         }
 #else
         pointsArray = PointDto.getMockData()
@@ -209,9 +210,8 @@ struct LessonsView: View, FallbackView {
     }
     
     @ViewBuilder
-    private func lessonView(for lesson: LessonDto, activity: Double) -> some View {
+    func lessonView(for lesson: LessonDto, activity: Double) -> some View {
         if lesson.status == .past {
-            //TODO: - EDGE CASE WHEN ASSIGNED BUT NOT so past :>
             NavigationLink(destination: TasksAssignedView(title: formattedDate(from: lesson.classDate), lesson: lesson, courseId: course.id, activity: activity)                        .environment(refreshController)) {
                 HStack {
                     Text(formattedDate(from: lesson.classDate))
@@ -225,7 +225,7 @@ struct LessonsView: View, FallbackView {
             .accessibilityHint("Check assigned tasks")
         } else if lesson.status == .near {
             if !lesson.exercises.isEmpty {
-                NavigationLink(destination: TasksAssignView(title: formattedDate(from: lesson.classDate), lessonId: lesson.id, exercises: lesson.exercises.sortedByNumber())) {
+                NavigationLink(destination: TasksAssignView(title: formattedDate(from: lesson.classDate), lessonId: lesson.id, data: lesson.exercises)) {
                     VStack(alignment: .leading) {
                         Text(formattedDate(from: lesson.classDate))
                             .font(.headline)
@@ -241,7 +241,7 @@ struct LessonsView: View, FallbackView {
                 }
             }
         } else {
-            if OAuthManager.shared.isAuthorised(user: course.creator) {
+            if UserInformation.shared.isAuthorised(user: course.creator) {
                 NavigationLink(destination: TasksManagementView(lesson: lesson)) {
                     Text(formattedDate(from: lesson.classDate))
                         .font(.headline)
@@ -254,7 +254,9 @@ struct LessonsView: View, FallbackView {
     }
 }
 
-struct CreateLessonView: View {
+struct CreateLessonView: View, PostData {
+    @State var isPutOngoing = false
+    
     let courseId: UUID
     
     @Binding var showCreate: Bool
@@ -263,23 +265,23 @@ struct CreateLessonView: View {
     
     @State var showApiError: Bool = false
     @Environment(RefreshController.self) var refreshController
+    @Environment(NetworkMonitor.self) var networkMonitor
 
     var body: some View {
         HStack {
             DatePicker("Lesson Date", selection: $date, displayedComponents: .date)
             Button("Add") {
                 Task {
-                do {
-                    try await DBQuery.manualAddLesson(courseId: courseId, date: date)
-                    refreshController.triggerRefreshLessons()
-                    withAnimation {
-                        showCreate = false
-                    }
-                } catch {
-                    showApiError = true
-                }
+                    await postInformation(postOperation: { try await DBQuery.manualAddLesson(courseId: courseId, date: date) }
+                                   , onError: { _ in self.showApiError = true}, logicAfterSuccess: {
+                        refreshController.triggerRefreshLessons()
+                        withAnimation {
+                            showCreate = false
+                        }
+                    })
                 }
             }
+            .replacedWithProgressView(isPutOngoing: isPutOngoing)
             .alert("Unable to add lesson", isPresented: $showApiError) {}
             .buttonStyle(.borderedProminent)
         }

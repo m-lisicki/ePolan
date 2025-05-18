@@ -3,7 +3,6 @@
 //  ePolan
 //
 //  Created by Michał Lisicki on 28/04/2025.
-//  Copyright © 2025 orgName. All rights reserved.
 //
 
 import SwiftUI
@@ -13,29 +12,25 @@ import UserNotifications
 struct CreateCourseView: View {
     @Binding var courses: Array<CourseDto>
     
-    
-    @State private var name = ""
-    @State private var instructorEmail = ""
-    @State private var selectedDays = Set<String>()
-    @State private var emailInput = ""
-    @State private var emails = Array<String>()
-    @State private var startDate: Date = Date()
-    @State private var endDate: Date = Date().addingTimeInterval(60 * 60 * 24 * 7)
-    @State private var calendarWeekdaySymbols = Calendar.autoupdatingCurrent.shortWeekdaySymbols
-    @State private var repeatInterval = 1
-    
+    @State var name = ""
+    @State var instructorEmail = ""
+    @State var selectedDays = Set<String>()
+    @State var emailInput = ""
+    @State var emails = Array<String>()
+    @State var startDate: Date = Date()
+    @State var endDate: Date = Date().addingTimeInterval(60 * 60 * 24 * 7)
+    @State var calendarWeekdaySymbols = Calendar.autoupdatingCurrent.shortWeekdaySymbols
+    @State var repeatInterval = 1
+    @State var isPutOngoing = false
+
     var isFormValid: Bool {
         !name.isEmpty && !instructorEmail.isEmpty && !selectedDays.isEmpty && startDate < endDate && EmailHelper.isEmailValid(instructorEmail)
     }
     
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dismiss) var dismiss
     
     @State var showApiError = false
-    @State var apiError: ApiError? {
-        didSet {
-            showApiError = true
-        }
-    }
+    @State var apiError: ApiError?
     
     var body: some View {
         Form {
@@ -68,7 +63,7 @@ struct CreateCourseView: View {
                             }
                     }
                 }
-                Stepper(value: $repeatInterval, in: 1...3) {
+                Stepper(value: $repeatInterval, in: 1...4) {
                     Text("Every") + Text(" ") + Text(repeatInterval == 1 ? "Week" : "\(repeatInterval) Weeks")
                 }
             }
@@ -85,7 +80,7 @@ struct CreateCourseView: View {
                     TextField("Enter instructor email", text: $instructorEmail)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
-                    if let email = OAuthManager.shared.email, instructorEmail != email {
+                    if let email = UserInformation.shared.email, instructorEmail != email {
                         Button("Me") {
                             instructorEmail = email
                         }
@@ -113,45 +108,47 @@ struct CreateCourseView: View {
         .toolbar {
             // MARK: - Done Button
             ToolbarItem(placement: .confirmationAction) {
-                Button("Done") {
-                    Task {
-                        do {
-                            
-                            let newCourse =  try await DBQuery.createCourse(
-                                name: name,
-                                instructor: instructorEmail,
-                                swiftShortSymbols: selectedDays,
-                                students: Set(emails),
-                                startDate: startDate,
-                                endDate: endDate,
-                                frequency: repeatInterval
-                            )
-                            
-                            
-                            
-                            try await withThrowingTaskGroup { group in
-                                for email in emails {
-                                    group.addTask {
-                                        try await DBQuery.addStudent(courseId: newCourse.id,email: EmailHelper.trimCharacters(email))
+                if !isPutOngoing {
+                    Button("Done") {
+                        Task {
+                            do {
+                                isPutOngoing = true
+                                let newCourse =  try await DBQuery.createCourse(
+                                    name: name,
+                                    instructor: instructorEmail,
+                                    swiftShortSymbols: selectedDays,
+                                    students: Set(emails),
+                                    startDate: startDate,
+                                    endDate: endDate,
+                                    frequency: repeatInterval
+                                )
+                                
+                                
+                                
+                                try await withThrowingTaskGroup { group in
+                                    for email in emails {
+                                        group.addTask {
+                                            try await DBQuery.addStudent(courseId: newCourse.id,email: EmailHelper.trimCharacters(email))
+                                        }
                                     }
+                                    
+                                    try await group.waitForAll()
                                 }
                                 
-                                try await group.waitForAll()
+                                courses.append(newCourse)
+                                dismiss()
+                            } catch {
+                                log.error("\(error)")
+                                apiError = error.mapToApiError()
+                                showApiError = true
+                                isPutOngoing = false
                             }
-                            
-                            
-                            //TODO: - Push notifications
-                            //NotificationCentre.scheduleCourseNotification(startDate: startDate, endDate: endDate, courseName: name, weekDay: selectedDays)
-                            
-                            courses = courses + [newCourse]
-                            dismiss()
-                        } catch {
-                            log.error("\(error)")
-                            apiError = error.mapToApiError()
                         }
                     }
+                    .disabled(!isFormValid)
+                } else {
+                    ProgressView()
                 }
-                .disabled(!isFormValid)
             }
             
         }

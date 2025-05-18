@@ -1,19 +1,20 @@
 //
-//  ModifyCourseUsers.swift
+//  CourseUsersView.swift
 //  ePolan
 //
 //  Created by Michał Lisicki on 02/05/2025.
-//  Copyright © 2025 orgName. All rights reserved.
 //
 
 import SwiftUI
 
 #Preview {
-    CourseUsers(course: CourseDto.getMockData().first!)
+    CourseUsersView(course: CourseDto.getMockData().first!)
         .environment(NetworkMonitor())
 }
 
-struct CourseUsers: View, FallbackView {
+struct CourseUsersView: View, FallbackView, PostData {
+    @State var isPutOngoing = false
+    
     typealias T = String
     
     let course: CourseDto
@@ -28,18 +29,12 @@ struct CourseUsers: View, FallbackView {
     @State var email: String = ""
     
     var currentUser: String {
-        OAuthManager.shared.email ?? ""
+        UserInformation.shared.email ?? ""
     }
     
         
     @State var showApiError: Bool = false
-    @State var apiError: ApiError? {
-        didSet {
-            if networkMonitor.isConnected {
-                showApiError = true
-            }
-        }
-    }
+    @State var apiError: ApiError?
     
     @Environment(NetworkMonitor.self) var networkMonitor
     
@@ -49,7 +44,7 @@ struct CourseUsers: View, FallbackView {
                 Text(user)
                     .bold(user == currentUser)
                     .swipeActions {
-                        if (user != currentUser) && OAuthManager.shared.isAuthorised(user: course.creator) {
+                        if (user != currentUser) && UserInformation.shared.isAuthorised(user: course.creator) {
                             Button("Delete", role: .destructive) {
                                 Task {
                                     await removeUser(email: user)
@@ -60,10 +55,10 @@ struct CourseUsers: View, FallbackView {
                     }
             }
             .errorAlert(isPresented: $showApiError, error: apiError)
-            .fallbackView(viewState: viewState, fetchData: fetchData)
+            .fallbackView(viewState: viewState)
             .listStyle(.plain)
             .padding()
-            if OAuthManager.shared.isAuthorised(user: course.creator) {
+            if UserInformation.shared.isAuthorised(user: course.creator) {
                 HStack {
                     TextField("Email", text: $email)
                         .textFieldStyle(.roundedBorder)
@@ -75,6 +70,7 @@ struct CourseUsers: View, FallbackView {
                             await addUser(email: EmailHelper.trimCharacters(email))
                         }
                     }
+                    .replacedWithProgressView(isPutOngoing: isPutOngoing)
                     .buttonStyle(.borderedProminent)
                     .disabled(!EmailHelper.isEmailValid(email) || users.contains(EmailHelper.trimCharacters(email)))
                 }
@@ -104,16 +100,20 @@ struct CourseUsers: View, FallbackView {
         .navigationTitle("Course users")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            await fetchData()
+            if networkMonitor.isConnected {
+                await fetchData()
+            }
         }
     }
     
     func fetchData(forceRefresh: Bool = false) async {
 #if !targetEnvironment(simulator)
-        do {
-            data = try await DBQuery.getAllStudents(courseId: course.id)
-        } catch {
-            apiError = error.mapToApiError()
+        await fetchData(
+            forceRefresh: forceRefresh,
+            fetchOperation: { try await DBQuery.getAllStudents(courseId: course.id) },
+            onError: { error in self.apiError = error }
+        ) {
+            data in self.data = data
         }
 #else
         data = Set(["Dr. Strangelove", "David Bowie", "Witkacy"])
@@ -121,21 +121,20 @@ struct CourseUsers: View, FallbackView {
     }
     
     func addUser(email: String) async {
-        do {
-            try await DBQuery.addStudent(courseId: course.id, email: email)
-            data?.insert(email)
+        await postInformation(
+            postOperation: { try await DBQuery.addStudent(courseId: course.id, email: email) },
+            onError: { error in self.apiError = error }
+        ) {
+            self.data?.insert(email)
             self.email = ""
-        } catch {
-            apiError = error.mapToApiError()
         }
     }
     
     func removeUser(email: String) async {
-        do {
-            try await DBQuery.removeStudent(courseId: course.id, email: email)
-            self.users.removeAll { $0 == email }
-        } catch {
-            apiError = error.mapToApiError()
+        await postInformation(
+            postOperation: { try await DBQuery.removeStudent(courseId: course.id, email: email) },
+            onError: { error in self.apiError = error }
+        ) { self.users.removeAll { $0 == email }
         }
     }
 }

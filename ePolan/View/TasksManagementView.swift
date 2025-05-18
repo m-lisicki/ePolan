@@ -3,24 +3,20 @@
 //  ePolan
 //
 //  Created by Michał Lisicki on 02/05/2025.
-//  Copyright © 2025 orgName. All rights reserved.
 //
 
 import SwiftUI
 
-struct TasksManagementView: View, FallbackView {
+struct TasksManagementView: View, FallbackView, PostData {
     @State var lesson: LessonDto
     @State var data: Set<ExerciseDto>?
     
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dismiss) var dismiss
     @Environment(NetworkMonitor.self) var networkMonitor
     
     @State var showApiError = false
-    @State var apiError: ApiError? {
-        didSet {
-            showApiError = true
-        }
-    }
+    @State var isPutOngoing = false
+    @State var apiError: ApiError?
     
     var body: some View {
         VStack {
@@ -60,22 +56,23 @@ struct TasksManagementView: View, FallbackView {
                 .padding()
             }
         }
-        .fallbackView(viewState: viewState != .empty ? viewState : .loaded, fetchData: fetchData)
+        .fallbackView(viewState: viewState != .empty ? viewState : .loaded)
         .errorAlert(isPresented: $showApiError, error: apiError)
         .navigationTitle("Manage exercises")
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
                     Task {
-                        do {
-                            lesson.exercises = data!
-                            try await DBQuery.postExercises(lesson: lesson)
+                        lesson.exercises = data!
+                        await postInformation(
+                            postOperation: { try await DBQuery.postExercises(lesson: lesson) },
+                            onError: { error in self.apiError = error }
+                        ) {
                             dismiss()
-                        } catch {
-                            apiError = error.mapToApiError()
                         }
                     }
                 }
+                .replacedWithProgressView(isPutOngoing: isPutOngoing)
                 .disabled(lesson.exercises == data || data == nil)
             }
         }
@@ -84,39 +81,38 @@ struct TasksManagementView: View, FallbackView {
         }
     }
     
-    private func fetchData(forceRefresh: Bool = false) async {
-        do {
-            data = try await Set(DBQuery.getAllExercises(lessonId: lesson.id))
-        }  catch {
-            apiError = error.mapToApiError()
+    func fetchData(forceRefresh: Bool = false) async {
+        await fetchData(
+            forceRefresh: forceRefresh,
+            fetchOperation: { try await Set(DBQuery.getAllExercises(lessonId: lesson.id)) },
+            onError: { error in self.apiError = error }
+        ) {
+            data in self.data = data
         }
     }
     
-    private func addExercise() {
+    func addExercise() {
         let index = (data!.map(\.exerciseNumber).max() ?? 0) + 1
-        data = data!.union([ExerciseDto(classDate: lesson.classDate, groupName: lesson.courseName, exerciseNumber: index, subpoint: nil)])
+        data?.insert(ExerciseDto(classDate: lesson.classDate, groupName: lesson.courseName, exerciseNumber: index, subpoint: nil))
     }
     
-    private func addSubpoint(to exercise: ExerciseDto) {
-        var set = data!
-        
-        let siblings = set.filter { $0.exerciseNumber == exercise.exerciseNumber }
+    func addSubpoint(to exercise: ExerciseDto) {
+        let siblings = data?.filter { $0.exerciseNumber == exercise.exerciseNumber }
         
         if exercise.subpoint == nil {
             // First subpoint (creating a and b at once)
+            data?.remove(exercise)
             var first = exercise
-            set.remove(first)
             first.subpoint = "a"
-            set.insert(first)
+            data?.insert(first)
             let second = ExerciseDto(classDate: exercise.classDate, groupName: exercise.groupName, exerciseNumber:  exercise.exerciseNumber, subpoint: "b")
-            set.insert(second)
-            data = set
+            data?.insert(second)
             return
         }
         
-        let sortedSiblings = siblings.sorted { ($0.subpoint ?? "") < ($1.subpoint ?? "") }
+        let sortedSiblings = siblings?.sorted { ($0.subpoint ?? "") < ($1.subpoint ?? "") }
         
-        if let last = sortedSiblings.last, let lastSubpoint = last.subpoint {
+        if let last = sortedSiblings?.last, let lastSubpoint = last.subpoint {
             var nextSubpoint: String?
             
             if let ascii = lastSubpoint.unicodeScalars.first?.value, ascii < 122 {
@@ -133,29 +129,23 @@ struct TasksManagementView: View, FallbackView {
                     exerciseNumber: exercise.exerciseNumber,
                     subpoint: nextSubpoint
                 )
-                set.insert(next)
+                data?.insert(next)
             }
         }
-        
-        data = set
     }
     
     
     
-    private func removeExercise(for exercise: ExerciseDto) {
-        var set = data!
+    func removeExercise(for exercise: ExerciseDto) {
+        data?.remove(exercise)
         
-        set.remove(exercise)
-        
-        let siblings = set.filter { $0.exerciseNumber == exercise.exerciseNumber }
+        let siblings = data?.filter { $0.exerciseNumber == exercise.exerciseNumber }
         
         // Last subpoints - converting back to exercise without subpoint
-        if siblings.count == 1, var second = siblings.first, second.subpoint != nil {
-            set.remove(second)
+        if siblings?.count == 1, var second = siblings?.first, second.subpoint != nil {
+            data?.remove(second)
             second.subpoint = nil
-            set.insert(second)
+            data?.insert(second)
         }
-        
-        data = set
     }
 }

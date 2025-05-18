@@ -3,7 +3,6 @@
 //  ePolan
 //
 //  Created by Michał Lisicki on 30/04/2025.
-//  Copyright © 2025 orgName. All rights reserved.
 //
 
 import Foundation

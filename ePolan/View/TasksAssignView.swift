@@ -3,37 +3,39 @@
 //  ePolan
 //
 //  Created by Michał Lisicki on 27/04/2025.
-//  Copyright © 2025 orgName. All rights reserved.
 //
 
 import SwiftUI
 
-struct TasksAssignView: View, FallbackView {
-    typealias T = DeclarationDto
+struct TasksAssignView: View, FallbackView, PostData {
+    typealias T = ExerciseDto
     
-    @State private var isEditing: EditMode = .active
+    @State var isEditing: EditMode = .active
+    @State var isPutOngoing = false
     
     let title: String
     let lessonId: UUID
     
-    @State var exercises: Array<ExerciseDto>
-    @State var data: Set<DeclarationDto>?
-        
+    @State var data: Set<ExerciseDto>? {
+        didSet {
+            if let data = data {
+                exercises = data.sortedByNumber()
+            }
+        }
+    }
+    
+    @State var exercises = Array<ExerciseDto>()
+    
+    @State var declarations: Set<DeclarationDto>?
     @State var selection: Set<ExerciseDto> = []
     @State var initialSelection: Set<ExerciseDto> = []
         
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dismiss) var dismiss
     
     @Environment(NetworkMonitor.self) var networkMonitor
     
     @State var showApiError: Bool = false
-    @State var apiError: ApiError? {
-        didSet {
-            if networkMonitor.isConnected {
-                showApiError = true
-            }
-        }
-    }
+    @State var apiError: ApiError?
     
     var body: some View {
         VStack {
@@ -43,11 +45,12 @@ struct TasksAssignView: View, FallbackView {
                     }
                 }
                 .environment(\.editMode, $isEditing)
-                .fallbackView(viewState: viewState, fetchData: fetchData)
+                .fallbackView(viewState: viewState)
         }
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
+                    isPutOngoing = true
                     let added = selection.subtracting(initialSelection)
                     let removed = initialSelection.subtracting(selection)
                     
@@ -60,7 +63,7 @@ struct TasksAssignView: View, FallbackView {
                             }
                             
                             for exercise in removed {
-                                let matchingDeclarations = data?.filter({ $0.exercise == exercise && $0.declarationStatus == .waiting}) ?? []
+                                let matchingDeclarations = declarations?.filter({ $0.exercise == exercise && $0.declarationStatus == .waiting}) ?? []
                                 for declaration in matchingDeclarations {
                                     group.addTask {
                                         await postExerciseUnDeclaration(declarationId: declaration.id)
@@ -71,9 +74,10 @@ struct TasksAssignView: View, FallbackView {
                     }
                     
                     initialSelection = selection
-                    
+                    isPutOngoing = false
                     dismiss()
                 }
+                .replacedWithProgressView(isPutOngoing: isPutOngoing)
                 .disabled(initialSelection == selection)
             }
         }
@@ -88,42 +92,43 @@ struct TasksAssignView: View, FallbackView {
         .navigationTitle(title)
     }
     
-    private func fetchData(forceRefresh: Bool = false) async {
-        do {
+    func fetchData(forceRefresh: Bool = false) async {
+        await fetchData(
+            forceRefresh: forceRefresh,
+            fetchOperation: { try await DBQuery.getAllLessonDeclarations(lessonId: lessonId) },
+            onError: { error in self.apiError = error }
+        ) {
+            newDeclarations in
 #if !targetEnvironment(simulator)
-            data = try await DBQuery.getAllLessonDeclarations(lessonId: lessonId)
+            self.declarations = newDeclarations
 #else
-            data = Set(DeclarationDto.getMockData())
+            declarations = Set(DeclarationDto.getMockData())
 #endif
-            selection = Set(data?.filter { $0.declarationStatus == .waiting }.compactMap(\.exercise) ?? [])
-            
+            selection = Set(newDeclarations.filter { $0.declarationStatus == .waiting }.compactMap(\.exercise))
             initialSelection = selection
-            
-            apiError = nil
-        } catch {
-            apiError = error.mapToApiError()
         }
     }
     
-    private func postExerciseUnDeclaration(declarationId: UUID) async {
-        do {
-            try await DBQuery.removeDeclaration(declarationId: declarationId)
-            if let item = data?.first(where: { $0.id == declarationId }) {
-                data?.remove(item)
+    func postExerciseUnDeclaration(declarationId: UUID) async {
+        await postInformation(
+            postOperation: { try await DBQuery.removeDeclaration(declarationId: declarationId) },
+            onError: { error in self.apiError = error }
+        ) {
+            if let item = declarations?.first(where: { $0.id == declarationId }) {
+                declarations?.remove(item)
             }
-        } catch {
-            apiError = error.mapToApiError()
         }
     }
     
     
-    private func postExerciseDeclaration(exerciseId: UUID) async {
-        do {
-            try await DBQuery.postDeclaration(exerciseId: exerciseId)
-        } catch {
-            apiError = error.mapToApiError()
+    func postExerciseDeclaration(exerciseId: UUID) async {
+        await postInformation(
+            postOperation: { try await DBQuery.postDeclaration(exerciseId: exerciseId) },
+            onError: { error in self.apiError = error }
+        ) {
+            Task {
+                await fetchData()
+            }
         }
-        
-        await fetchData()
     }
 }

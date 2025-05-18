@@ -3,7 +3,6 @@
 //  ePolan
 //
 //  Created by Michał Lisicki on 06/05/2025.
-//  Copyright © 2025 orgName. All rights reserved.
 //
 
 
@@ -26,4 +25,6 @@ final class NetworkMonitor: Sendable {
         }
         networkMonitor.start(queue: workerQueue)
     }
+    
+    
 }

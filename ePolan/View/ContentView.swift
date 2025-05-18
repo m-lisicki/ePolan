@@ -3,25 +3,21 @@
 //  ePolan
 //
 //  Created by Michał Lisicki on 27/04/2025.
-//  Copyright © 2025 orgName. All rights reserved.
 //
 
 
 import SwiftUI
 
-#Preview {
-    BottomBarView()
-        .environment(OAuthManager.shared)
-        .environment(NetworkMonitor())
-}
+//#Preview {
+//    BottomBarView()
+//        .environment(NetworkMonitor())
+//}
 
 struct ContentView: View {
-    @Environment(OAuthManager.self) var oauth: OAuthManager
-    
     var body: some View {
         VStack {
 #if !targetEnvironment(simulator)
-            if oauth.accessToken == nil {
+            if UserInformation.shared.isLoggedIn == false {
                 SignInView()
             } else {
                 BottomBarView()
@@ -35,13 +31,15 @@ struct ContentView: View {
 
 struct BottomBarView: View {
     @State var accentColor: Color = .accent
-    
+    let networkMonitor = NetworkMonitor()
+
     var body: some View {
         TabView {
             CourseView()
                 .tabItem {
                     Label("Courses", systemImage: "book")
                 }
+                .environment(networkMonitor)
             UserManagementView(accentColor: $accentColor)
                 .tabItem {
                     Label("User", systemImage: "person.crop.circle")

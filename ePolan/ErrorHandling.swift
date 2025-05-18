@@ -1,9 +1,8 @@
 //
-//  ViewState.swift
+//  ErrorHandling.swift
 //  ePolan
 //
 //  Created by Michał Lisicki on 17/05/2025.
-//  Copyright © 2025 orgName. All rights reserved.
 //
 
 import SwiftUI
@@ -12,25 +11,28 @@ enum ViewState {
     case loading
     case loaded
     case empty
-    case offlineNotLoaded
 }
 
 @MainActor
-protocol FallbackView {
+protocol FallbackView: View {
     associatedtype T: Hashable
-
+    
     var networkMonitor: NetworkMonitor { get }
     var apiError: ApiError? { get }
-    var showApiError: Bool { get set }
+    var showApiError: Bool { get nonmutating set }
     var data: Set<T>? { get }
 }
 
+@MainActor
+protocol PostData {
+    var networkMonitor: NetworkMonitor { get }
+    var isPutOngoing: Bool { get nonmutating set }
+    var showApiError: Bool { get nonmutating set }
+}
+
 extension FallbackView {
-    @MainActor
     var viewState: ViewState {
-        if !networkMonitor.isConnected && data != nil {
-            return .offlineNotLoaded
-        } else if data == nil {
+        if data == nil {
             return .loading
         } else if data?.isEmpty ?? false {
             return .empty
@@ -38,6 +40,41 @@ extension FallbackView {
             return .loaded
         }
     }
+    
+    func fetchData<T: Sendable>(forceRefresh: Bool, fetchOperation: () async throws -> T, onError: ((ApiError?) -> Void), assign: (T) -> Void) async {
+            do {
+                assign(try await fetchOperation())
+            } catch {
+                if forceRefresh && !networkMonitor.isConnected || networkMonitor.isConnected {
+                    let apiError = error.mapToApiError()
+                    onError(apiError)
+                    if apiError != nil {
+                        showApiError = true
+                    }
+                }
+            }
+        }
+}
+
+extension PostData {
+    func postInformation(postOperation: () async throws -> Void, onError: ((ApiError?) -> Void), logicAfterSuccess: () -> Void) async {
+            do {
+                isPutOngoing = true
+                guard networkMonitor.isConnected else {
+                    throw ApiError.customError("This action requires an internet connection.")
+                }
+                try await postOperation()
+                logicAfterSuccess()
+                isPutOngoing = false
+            } catch {
+                let apiError = error.mapToApiError()
+                onError(apiError)
+                if apiError != nil {
+                    showApiError = true
+                }
+                isPutOngoing = false
+            }
+        }
 }
 
 // MARK: - Error Handling
@@ -65,34 +102,27 @@ extension ApiError: LocalizedError {
 }
 
 extension Error {
-    func mapToApiError() -> ApiError {
+    func mapToApiError() -> ApiError? {
         if let apiError = self as? ApiError {
             return apiError
+        } else if (self as NSError).code == NSURLErrorCancelled {
+            return nil
         } else {
-            return .customError("Unexpected error: \(self.localizedDescription)")
+            return .customError(self.localizedDescription)
         }
     }
 }
 
 extension View {
-    func fallbackView(viewState: ViewState, fetchData: @escaping (_ forceRefresh: Bool) async -> Void) -> some View {
+    func fallbackView(viewState: ViewState) -> some View {
         overlay {
             switch viewState {
             case .loading:
                 ProgressView()
                     .padding()
                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
-                
             case .empty:
                 ContentUnavailableView("No items yet", systemImage: "book.closed")
-                
-            case .offlineNotLoaded:
-                ContentUnavailableView {
-                    Label("No Internet Connection", systemImage: "wifi.slash")
-                } description: {
-                    Text("Check your internet connection and try again.")
-                }
-                
             case .loaded:
                 EmptyView()
             }
@@ -102,8 +132,22 @@ extension View {
 
 extension View {
     func errorAlert(isPresented: Binding<Bool>, error: ApiError?) -> some View {
-        self.alert(isPresented: isPresented) {
-            Alert(title: Text("Something went wrong!"), message: Text(error?.localizedDescription ?? "An unknown error occurred."))
+        if let error = error {
+            return AnyView(self.alert(isPresented: isPresented) {
+                Alert(title: Text("Something went wrong!"), message: Text(error.localizedDescription))
+            })
+        }
+        return AnyView(self)
+    }
+}
+
+extension Button {
+    @ViewBuilder
+    func replacedWithProgressView(isPutOngoing: Bool) -> some View {
+        if isPutOngoing {
+            ProgressView()
+        } else {
+            self
         }
     }
 }

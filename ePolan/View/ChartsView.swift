@@ -1,9 +1,8 @@
 //
-//  GraphsView.swift
+//  ChartsView.swift
 //  ePolan
 //
 //  Created by Michał Lisicki on 13/05/2025.
-//  Copyright © 2025 orgName. All rights reserved.
 //
 
 import SwiftUI

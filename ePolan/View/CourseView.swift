@@ -3,7 +3,6 @@
 //  ePolan
 //
 //  Created by Michał Lisicki on 27/04/2025.
-//  Copyright © 2025 orgName. All rights reserved.
 //
 
 import SwiftUI
@@ -14,7 +13,7 @@ import SwiftUI
 }
 
 
-struct CourseView: View, FallbackView {
+struct CourseView: View, FallbackView, PostData {
     typealias T = CourseDto
     
     @State var data: Set<CourseDto>? {
@@ -29,17 +28,11 @@ struct CourseView: View, FallbackView {
     @State var showArchived = false
     
     var refreshController = RefreshController()
+    @Environment(NetworkMonitor.self) var networkMonitor
 
     @State var showApiError: Bool = false
-    @State var apiError: ApiError? {
-        didSet {
-            if networkMonitor.isConnected {
-                showApiError = true
-            }
-        }
-    }
-    
-    @Environment(NetworkMonitor.self) var networkMonitor
+    @State var isPutOngoing = false
+    @State var apiError: ApiError?
     
     var body: some View {
         NavigationStack {
@@ -52,12 +45,10 @@ struct CourseView: View, FallbackView {
                     .swipeActions {
                         Button("Archive") {
                             Task {
-                                do {
-                                    try await DBQuery.archiveCourse(courseId: course.id)
-                                    data?.remove(course)
-                                } catch {
-                                    apiError = error.mapToApiError()
-                                }
+                                await postInformation(
+                                    postOperation: { try await DBQuery.archiveCourse(courseId: course.id) },
+                                    onError: { error in self.apiError = error }
+                                ) { data?.remove(course) }
                             }
                         }
                     }
@@ -67,7 +58,7 @@ struct CourseView: View, FallbackView {
                 }
             }
             .errorAlert(isPresented: $showApiError, error: apiError)
-            .fallbackView(viewState: viewState, fetchData: fetchData)
+            .fallbackView(viewState: viewState)
             .navigationTitle("Courses")
             .overlay(alignment: .bottom) {
                 if showAddCode {
@@ -151,10 +142,12 @@ struct CourseView: View, FallbackView {
     
     func fetchData(forceRefresh: Bool = false) async {
 #if !targetEnvironment(simulator)
-        do {
-            data = try await DBQuery.getAllCourses(forceRefresh: forceRefresh)
-        }  catch {
-            apiError = error.mapToApiError()
+        await fetchData(
+            forceRefresh: forceRefresh,
+            fetchOperation: { try await DBQuery.getAllCourses(forceRefresh: forceRefresh) },
+            onError: { error in self.apiError = error }
+        ) {
+            data in self.data = data
         }
 #else
         data = Set(CourseDto.getMockData())
@@ -162,7 +155,13 @@ struct CourseView: View, FallbackView {
     }
 }
 
-struct JoinCourseView: View {
+struct JoinCourseView: View, PostData {
+    @State var apiError: ApiError?
+    
+    @State var isPutOngoing = false
+    @State var showApiError = false
+    
+    @Environment(NetworkMonitor.self) var networkMonitor
     @State var invitationCode: String = ""
     @Binding var isAddCodeShown: Bool
     
@@ -171,18 +170,23 @@ struct JoinCourseView: View {
             TextField("Enter invitation code", text: $invitationCode)
             Button("Join") {
                 Task {
-                    try await DBQuery.joinCourse(invitationCode: invitationCode)
-                }
-                withAnimation {
-                    isAddCodeShown = false
+                    await postInformation(
+                        postOperation: { try await DBQuery.joinCourse(invitationCode: invitationCode) }
+                        ,onError: { error in self.apiError = error }
+                        ,logicAfterSuccess: {
+                            withAnimation {
+                                isAddCodeShown = false
+                            }
+                        })
                 }
             }
+            .replacedWithProgressView(isPutOngoing: isPutOngoing)
         }
         .padding()
     }
 }
 
-struct ArchivedCoursesView: View, FallbackView {
+struct ArchivedCoursesView: View, FallbackView, PostData {
     typealias T = CourseDto
         
     @State var data: Set<CourseDto>? {
@@ -197,13 +201,8 @@ struct ArchivedCoursesView: View, FallbackView {
     @Environment(RefreshController.self) var refreshController
     
     @State var showApiError: Bool = false
-    @State var apiError: ApiError? {
-        didSet {
-            if networkMonitor.isConnected {
-                showApiError = true
-            }
-        }
-    }
+    @State var isPutOngoing = false
+    @State var apiError: ApiError?
     
     
     var body: some View {
@@ -213,12 +212,11 @@ struct ArchivedCoursesView: View, FallbackView {
                     .swipeActions {
                         Button("Unarchive") {
                             Task {
-                                do {
-                                    try await DBQuery.unarchiveCourse(courseId: course.id)
-                                    data?.remove(course)
+                                await postInformation(
+                                    postOperation: { try await DBQuery.unarchiveCourse(courseId: course.id) },
+                                    onError: { error in self.apiError = error }
+                                ) { data?.remove(course)
                                     refreshController.triggerRefreshCourses()
-                                } catch {
-                                    apiError = error.mapToApiError()
                                 }
                             }
                         }
@@ -233,16 +231,18 @@ struct ArchivedCoursesView: View, FallbackView {
         }
         .navigationTitle("Archived Courses")
         .navigationBarTitleDisplayMode(.inline)
-        .fallbackView(viewState: viewState, fetchData: fetchData)
+        .fallbackView(viewState: viewState)
         .errorAlert(isPresented: $showApiError, error: apiError)
     }
     
     func fetchData(forceRefresh: Bool = false) async {
 #if !targetEnvironment(simulator)
-        do {
-            data = try await DBQuery.getArchivedCourses()
-        } catch {
-            apiError = error.mapToApiError()
+        await fetchData(
+            forceRefresh: forceRefresh,
+            fetchOperation: { try await DBQuery.getArchivedCourses() },
+            onError: { error in self.apiError = error }
+        ) {
+            data in self.data = data
         }
 #else
         data = Set(CourseDto.getMockData())
