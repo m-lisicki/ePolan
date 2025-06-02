@@ -16,7 +16,7 @@ enum ViewState {
 @MainActor
 protocol FallbackView: View {
     associatedtype T: Hashable
-    
+
     var networkMonitor: NetworkMonitor { get }
     var apiError: ApiError? { get }
     var showApiError: Bool { get nonmutating set }
@@ -33,48 +33,49 @@ protocol PostData {
 extension FallbackView {
     var viewState: ViewState {
         if data == nil {
-            return .loading
+            .loading
         } else if data?.isEmpty ?? false {
-            return .empty
+            .empty
         } else {
-            return .loaded
+            .loaded
         }
     }
-    
-    func fetchData<T: Sendable>(forceRefresh: Bool, fetchOperation: () async throws -> T, onError: ((ApiError?) -> Void), assign: (T) -> Void) async {
-            do {
-                assign(try await fetchOperation())
-            } catch {
-                if forceRefresh && !networkMonitor.isConnected || networkMonitor.isConnected {
-                    let apiError = error.mapToApiError()
-                    onError(apiError)
-                    if apiError != nil {
-                        showApiError = true
-                    }
-                }
-            }
-        }
-}
 
-extension PostData {
-    func postInformation(postOperation: () async throws -> Void, onError: ((ApiError?) -> Void), logicAfterSuccess: () -> Void) async {
-            do {
-                isPutOngoing = true
-                guard networkMonitor.isConnected else {
-                    throw ApiError.customError("This action requires an internet connection.")
-                }
-                try await postOperation()
-                logicAfterSuccess()
-                isPutOngoing = false
-            } catch {
+    func fetchData<T: Sendable>(forceRefresh: Bool, fetchOperation: () async throws -> T, onError: (ApiError?) -> Void, assign: (T) -> Void) async {
+        do {
+            try await assign(fetchOperation())
+        } catch {
+            log.error("\(error)")
+            if forceRefresh && !networkMonitor.isConnected || networkMonitor.isConnected {
                 let apiError = error.mapToApiError()
                 onError(apiError)
                 if apiError != nil {
                     showApiError = true
                 }
-                isPutOngoing = false
             }
         }
+    }
+}
+
+extension PostData {
+    func postInformation(postOperation: () async throws -> Void, onError: (ApiError?) -> Void, logicAfterSuccess: () -> Void) async {
+        do {
+            isPutOngoing = true
+            guard networkMonitor.isConnected else {
+                throw ApiError.customError("This action requires an internet connection.")
+            }
+            try await postOperation()
+            logicAfterSuccess()
+            isPutOngoing = false
+        } catch {
+            let apiError = error.mapToApiError()
+            onError(apiError)
+            if apiError != nil {
+                showApiError = true
+            }
+            isPutOngoing = false
+        }
+    }
 }
 
 // MARK: - Error Handling
@@ -90,13 +91,13 @@ extension ApiError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidResponse:
-            return "Invalid response format"
-        case .httpError(statusCode: let code, body: let message):
-            return "HTTP error \(code): \(message)"
-        case .requestError(let underlyingError):
-            return underlyingError.localizedDescription
-        case .customError(let message):
-            return message
+            "Invalid response format"
+        case let .httpError(statusCode: code, body: message):
+            "HTTP error \(code): \(message)"
+        case let .requestError(underlyingError):
+            underlyingError.localizedDescription
+        case let .customError(message):
+            message
         }
     }
 }
@@ -104,11 +105,11 @@ extension ApiError: LocalizedError {
 extension Error {
     func mapToApiError() -> ApiError? {
         if let apiError = self as? ApiError {
-            return apiError
+            apiError
         } else if (self as NSError).code == NSURLErrorCancelled {
-            return nil
+            nil
         } else {
-            return .customError(self.localizedDescription)
+            .customError(localizedDescription)
         }
     }
 }
@@ -132,8 +133,8 @@ extension View {
 
 extension View {
     func errorAlert(isPresented: Binding<Bool>, error: ApiError?) -> some View {
-        if let error = error {
-            return AnyView(self.alert(isPresented: isPresented) {
+        if let error {
+            return AnyView(alert(isPresented: isPresented) {
                 Alert(title: Text("Something went wrong!"), message: Text(error.localizedDescription))
             })
         }

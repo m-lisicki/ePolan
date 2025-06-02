@@ -7,15 +7,15 @@
 
 import SwiftUI
 
-//#Preview {
+// #Preview {
 //    @Previewable @State var accentColor: Color = .accent
 //    UserManagementView(accentColor: $accentColor)
-//}
+// }
 
 struct UserManagementView: View {
     @Environment(\.openURL) var openURL
     @Binding var accentColor: Color
-    
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -29,7 +29,7 @@ struct UserManagementView: View {
                                 .foregroundColor(.secondary)
                                 .redacted(reason: UserInformation.shared.email?.isEmpty ?? false ? .placeholder : [])
                         }
-                        Link("Manage account", destination: URL(string: ("\(NetworkConstants.keycloakUrl)/realms/Users/account"))!)
+                        Link("Manage account", destination: URL(string: "\(NetworkConstants.keycloakUrl)/realms/Users/account")!)
                         Button(role: .destructive) {
                             OAuthManager.shared.logout()
                         } label: {
@@ -40,11 +40,11 @@ struct UserManagementView: View {
                             }
                         }
                     }
-                    
+
                     Section("Appearance") {
                         ColorPicker("Accent Color", selection: $accentColor)
                     }
-                    
+
                     Section("Contact & Support") {
                         Button {
                             let urlString = "mailto:m.lsck@icloud.com?subject=ePolan: bug report"

@@ -14,37 +14,36 @@ import SwiftUI
 
 struct CourseUsersView: View, FallbackView, PostData {
     @State var isPutOngoing = false
-    
+
     typealias T = String
-    
+
     let course: CourseDto
-    
+
     @State var data: Set<String>? {
         didSet {
             users = data?.sorted(by: <) ?? []
         }
     }
-    
-    @State var users: Array<String> = []
+
+    @State var users: [String] = []
     @State var email: String = ""
-    
+
     var currentUser: String {
         UserInformation.shared.email ?? ""
     }
-    
-        
+
     @State var showApiError: Bool = false
     @State var apiError: ApiError?
-    
+
     @Environment(NetworkMonitor.self) var networkMonitor
-    
+
     var body: some View {
         VStack {
             List(users, id: \.self) { user in
                 Text(user)
                     .bold(user == currentUser)
                     .swipeActions {
-                        if (user != currentUser) && UserInformation.shared.isAuthorised(user: course.creator) {
+                        if user != currentUser, UserInformation.shared.isAuthorised(user: course.creator) {
                             Button("Delete", role: .destructive) {
                                 Task {
                                     await removeUser(email: user)
@@ -64,7 +63,7 @@ struct CourseUsersView: View, FallbackView, PostData {
                         .textFieldStyle(.roundedBorder)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
-                    
+
                     Button("Add") {
                         Task {
                             await addUser(email: EmailHelper.trimCharacters(email))
@@ -105,36 +104,36 @@ struct CourseUsersView: View, FallbackView, PostData {
             }
         }
     }
-    
+
     func fetchData(forceRefresh: Bool = false) async {
-#if !targetEnvironment(simulator)
-        await fetchData(
-            forceRefresh: forceRefresh,
-            fetchOperation: { try await DBQuery.getAllStudents(courseId: course.id) },
-            onError: { error in self.apiError = error }
-        ) {
-            data in self.data = data
-        }
-#else
-        data = Set(["Dr. Strangelove", "David Bowie", "Witkacy"])
-#endif
+        #if true
+            await fetchData(
+                forceRefresh: forceRefresh,
+                fetchOperation: { try await DBQuery.getAllStudents(courseId: course.id) },
+                onError: { error in apiError = error },
+            ) {
+                data in self.data = data
+            }
+        #else
+            data = Set(["Dr. Strangelove", "David Bowie", "Witkacy"])
+        #endif
     }
-    
+
     func addUser(email: String) async {
         await postInformation(
             postOperation: { try await DBQuery.addStudent(courseId: course.id, email: email) },
-            onError: { error in self.apiError = error }
+            onError: { error in apiError = error },
         ) {
-            self.data?.insert(email)
+            data?.insert(email)
             self.email = ""
         }
     }
-    
+
     func removeUser(email: String) async {
         await postInformation(
             postOperation: { try await DBQuery.removeStudent(courseId: course.id, email: email) },
-            onError: { error in self.apiError = error }
-        ) { self.users.removeAll { $0 == email }
+            onError: { error in apiError = error },
+        ) { users.removeAll { $0 == email }
         }
     }
 }

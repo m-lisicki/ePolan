@@ -12,28 +12,27 @@ import SwiftUI
         .environment(NetworkMonitor())
 }
 
-
 struct CourseView: View, FallbackView, PostData {
     typealias T = CourseDto
-    
+
     @State var data: Set<CourseDto>? {
         didSet {
             groupedCourses = data?.sorted { $0.name < $1.name } ?? []
         }
     }
-    
+
     @State var groupedCourses = [CourseDto]()
     @State var showAddCode = false
     @State var showCreate = false
     @State var showArchived = false
-    
+
     var refreshController = RefreshController()
     @Environment(NetworkMonitor.self) var networkMonitor
 
     @State var showApiError: Bool = false
     @State var isPutOngoing = false
     @State var apiError: ApiError?
-    
+
     var body: some View {
         NavigationStack {
             VStack {
@@ -47,7 +46,7 @@ struct CourseView: View, FallbackView, PostData {
                             Task {
                                 await postInformation(
                                     postOperation: { try await DBQuery.archiveCourse(courseId: course.id) },
-                                    onError: { error in self.apiError = error }
+                                    onError: { error in apiError = error },
                                 ) { data?.remove(course) }
                             }
                         }
@@ -83,7 +82,7 @@ struct CourseView: View, FallbackView, PostData {
                     }
                     .accessibilityLabel("Join course")
                 }
-                
+
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: { showCreate = true }) {
                         Image(systemName: "plus.rectangle.on.rectangle")
@@ -139,45 +138,46 @@ struct CourseView: View, FallbackView, PostData {
             }
         }
     }
-    
+
     func fetchData(forceRefresh: Bool = false) async {
-#if !targetEnvironment(simulator)
-        await fetchData(
-            forceRefresh: forceRefresh,
-            fetchOperation: { try await DBQuery.getAllCourses(forceRefresh: forceRefresh) },
-            onError: { error in self.apiError = error }
-        ) {
-            data in self.data = data
-        }
-#else
-        data = Set(CourseDto.getMockData())
-#endif
+        #if true
+            await fetchData(
+                forceRefresh: forceRefresh,
+                fetchOperation: { try await DBQuery.getAllCourses(forceRefresh: forceRefresh) },
+                onError: { error in apiError = error },
+            ) {
+                data in self.data = data
+            }
+        #else
+            data = Set(CourseDto.getMockData())
+        #endif
     }
 }
 
 struct JoinCourseView: View, PostData {
     @State var apiError: ApiError?
-    
+
     @State var isPutOngoing = false
     @State var showApiError = false
-    
+
     @Environment(NetworkMonitor.self) var networkMonitor
     @State var invitationCode: String = ""
     @Binding var isAddCodeShown: Bool
-    
+
     var body: some View {
         HStack {
             TextField("Enter invitation code", text: $invitationCode)
             Button("Join") {
                 Task {
                     await postInformation(
-                        postOperation: { try await DBQuery.joinCourse(invitationCode: invitationCode) }
-                        ,onError: { error in self.apiError = error }
-                        ,logicAfterSuccess: {
+                        postOperation: { try await DBQuery.joinCourse(invitationCode: invitationCode) },
+                        onError: { error in apiError = error },
+                        logicAfterSuccess: {
                             withAnimation {
                                 isAddCodeShown = false
                             }
-                        })
+                        },
+                    )
                 }
             }
             .replacedWithProgressView(isPutOngoing: isPutOngoing)
@@ -188,23 +188,22 @@ struct JoinCourseView: View, PostData {
 
 struct ArchivedCoursesView: View, FallbackView, PostData {
     typealias T = CourseDto
-        
+
     @State var data: Set<CourseDto>? {
         didSet {
             groupedCourses = data?.sorted { $0.name < $1.name } ?? []
         }
     }
-    
+
     @State var groupedCourses = [CourseDto]()
-    
+
     @Environment(NetworkMonitor.self) var networkMonitor
     @Environment(RefreshController.self) var refreshController
-    
+
     @State var showApiError: Bool = false
     @State var isPutOngoing = false
     @State var apiError: ApiError?
-    
-    
+
     var body: some View {
         VStack {
             List(groupedCourses, id: \.id) { course in
@@ -214,7 +213,7 @@ struct ArchivedCoursesView: View, FallbackView, PostData {
                             Task {
                                 await postInformation(
                                     postOperation: { try await DBQuery.unarchiveCourse(courseId: course.id) },
-                                    onError: { error in self.apiError = error }
+                                    onError: { error in apiError = error },
                                 ) { data?.remove(course)
                                     refreshController.triggerRefreshCourses()
                                 }
@@ -234,18 +233,18 @@ struct ArchivedCoursesView: View, FallbackView, PostData {
         .fallbackView(viewState: viewState)
         .errorAlert(isPresented: $showApiError, error: apiError)
     }
-    
+
     func fetchData(forceRefresh: Bool = false) async {
-#if !targetEnvironment(simulator)
-        await fetchData(
-            forceRefresh: forceRefresh,
-            fetchOperation: { try await DBQuery.getArchivedCourses() },
-            onError: { error in self.apiError = error }
-        ) {
-            data in self.data = data
-        }
-#else
-        data = Set(CourseDto.getMockData())
-#endif
+        #if true
+            await fetchData(
+                forceRefresh: forceRefresh,
+                fetchOperation: { try await DBQuery.getArchivedCourses() },
+                onError: { error in apiError = error },
+            ) {
+                data in self.data = data
+            }
+        #else
+            data = Set(CourseDto.getMockData())
+        #endif
     }
 }

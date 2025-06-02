@@ -5,14 +5,13 @@
 //  Created by Michał Lisicki on 27/04/2025.
 //
 
-
 import SwiftUI
 
-//#Preview {
+// #Preview {
 //    NavigationStack {
 //        SignInView()
 //    }
-//}
+// }
 
 struct SignInView: View {
     @State var showLogin = false
@@ -26,7 +25,7 @@ struct SignInView: View {
                     .fontWeight(.bold)
                     .font(.largeTitle)
                     .italic()
-                
+
                 VStack(spacing: 20) {
                     Text("Not logged in")
                         .fontWeight(.medium)
@@ -34,7 +33,7 @@ struct SignInView: View {
                         .padding(7)
                         .background(.ultraThinMaterial)
                         .cornerRadius(5)
-                    
+
                     Button("Login") {
                         isPerformingTask = true
                         Task {
@@ -55,7 +54,7 @@ struct BackgroundGradient: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.accessibilityReduceMotion) var reducedMotion
     @State var isAnimating = true
-    
+
     var body: some View {
         MeshGradient(
             width: 3,
@@ -63,18 +62,17 @@ struct BackgroundGradient: View {
             points: [
                 [0.0, 0.0], [0.5, 0.0], [1.0, 0.0],
                 [0.0, 0.5], [isAnimating ? 0.8 : 0.3, isAnimating ? 0.2 : 0.6], [1.0, isAnimating ? 0.5 : 0.3],
-                [0.0, 1.0], [isAnimating ? 0.3 : 0.6, 1.0], [1.0, 1.0]
+                [0.0, 1.0], [isAnimating ? 0.3 : 0.6, 1.0], [1.0, 1.0],
             ],
             colors: colorScheme == .light ?
-            [   .white, .green, .white,
-                .blue, .teal, .mint,
-                .pink, .purple, .white
-            ]
-            :
+                [.white, .green, .white,
+                 .blue, .teal, .mint,
+                 .pink, .purple, .white]
+                :
                 [.black, .indigo, .red,
                  .green, .black, .green,
                  .black, .purple, .pink],
-            smoothsColors: true
+            smoothsColors: true,
         )
         .onAppear {
             if !reducedMotion {

@@ -5,26 +5,25 @@
 //  Created by Michał Lisicki on 27/04/2025.
 //
 
-
 import SwiftUI
 
-//#Preview {
+// #Preview {
 //    BottomBarView()
 //        .environment(NetworkMonitor())
-//}
+// }
 
 struct ContentView: View {
     var body: some View {
         VStack {
-#if !targetEnvironment(simulator)
-            if UserInformation.shared.isLoggedIn == false {
-                SignInView()
-            } else {
+            #if true
+                if UserInformation.shared.isLoggedIn == false {
+                    SignInView()
+                } else {
+                    BottomBarView()
+                }
+            #else
                 BottomBarView()
-            }
-#else
-            BottomBarView()
-#endif
+            #endif
         }
     }
 }
