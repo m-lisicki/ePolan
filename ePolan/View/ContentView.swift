@@ -15,7 +15,7 @@ import SwiftUI
 struct ContentView: View {
     var body: some View {
         VStack {
-            #if true
+            #if RELEASE
                 if UserInformation.shared.isLoggedIn == false {
                     SignInView()
                 } else {

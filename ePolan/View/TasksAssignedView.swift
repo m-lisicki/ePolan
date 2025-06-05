@@ -94,7 +94,7 @@ struct TasksAssignedView: View, FallbackView {
     }
 
     func fetchData(forceRefresh: Bool = false) async {
-        #if true
+        #if RELEASE
             await fetchData(
                 forceRefresh: forceRefresh,
                 fetchOperation: { try await DBQuery.getAllLessonDeclarations(lessonId: lesson.id, forceRefresh: forceRefresh) },

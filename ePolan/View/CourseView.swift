@@ -140,7 +140,7 @@ struct CourseView: View, FallbackView, PostData {
     }
 
     func fetchData(forceRefresh: Bool = false) async {
-        #if true
+        #if RELEASE
             await fetchData(
                 forceRefresh: forceRefresh,
                 fetchOperation: { try await DBQuery.getAllCourses(forceRefresh: forceRefresh) },
@@ -235,7 +235,7 @@ struct ArchivedCoursesView: View, FallbackView, PostData {
     }
 
     func fetchData(forceRefresh: Bool = false) async {
-        #if true
+        #if RELEASE
             await fetchData(
                 forceRefresh: forceRefresh,
                 fetchOperation: { try await DBQuery.getArchivedCourses() },

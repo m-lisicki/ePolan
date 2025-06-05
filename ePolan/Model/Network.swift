@@ -10,9 +10,9 @@ import Foundation
 // MARK: - Constants
 
 enum NetworkConstants {
-    static let ip = "172.20.10.2"
+    static let ip = "localhost"
     static let baseUrl = "http://\(ip):8080"
-    static let keycloakUrl = "http://172.20.10.13:8280"
+    static let keycloakUrl = "http://\(ip):8280"
 }
 
 // MARK: - API Client and Services

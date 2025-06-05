@@ -106,7 +106,7 @@ struct CourseUsersView: View, FallbackView, PostData {
     }
 
     func fetchData(forceRefresh: Bool = false) async {
-        #if true
+        #if RELEASE
             await fetchData(
                 forceRefresh: forceRefresh,
                 fetchOperation: { try await DBQuery.getAllStudents(courseId: course.id) },

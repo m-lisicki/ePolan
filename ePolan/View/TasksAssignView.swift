@@ -100,7 +100,7 @@ struct TasksAssignView: View, FallbackView, PostData {
             onError: { error in apiError = error },
         ) {
             newExercises in
-            #if true
+            #if RELEASE
                 exercises = newExercises
             #else
                 exercises = ExerciseDto.getMockData()
@@ -113,7 +113,7 @@ struct TasksAssignView: View, FallbackView, PostData {
             onError: { error in apiError = error },
         ) {
             newDeclarations in
-            #if true
+            #if RELEASE
                 declarations = newDeclarations
             #else
                 declarations = Set(DeclarationDto.getMockData())

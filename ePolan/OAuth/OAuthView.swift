@@ -7,11 +7,11 @@
 
 import SwiftUI
 
-// #Preview {
-//    NavigationStack {
-//        SignInView()
-//    }
-// }
+#Preview {
+    NavigationStack {
+        SignInView()
+    }
+}
 
 struct SignInView: View {
     @State var showLogin = false

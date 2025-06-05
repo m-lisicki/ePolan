@@ -9,6 +9,11 @@ import SwiftUI
 
 import UserNotifications
 
+#Preview {
+    @Previewable @State var courses = CourseDto.getMockData()
+    CreateCourseView(courses: $courses)
+}
+
 struct CreateCourseView: View {
     @Binding var courses: [CourseDto]
 
@@ -48,12 +53,12 @@ struct CreateCourseView: View {
                         let isSelected = selectedDays.contains(weekday)
                         Text(weekday)
                             .font(.subheadline)
-                            .foregroundColor(.white)
+                            .foregroundColor(isSelected ? .white : .primary)
                             .frame(minWidth: 50, minHeight: 33)
                             .background(
-                                RoundedRectangle(cornerRadius: 7)
-                                    .fill(isSelected ? Color.accentColor : Color.secondary),
-                            )
+                                            RoundedRectangle(cornerRadius: 7)
+                                                .fill(isSelected ? Color.accentColor : Color.secondary.opacity(0.2))
+                                        )
                             .scaleEffect(isSelected ? 1.1 : 1.0)
                             .animation(.spring(response: 0.3, dampingFraction: 0.6), value: selectedDays)
                             .onTapGesture {
@@ -63,6 +68,8 @@ struct CreateCourseView: View {
                                     selectedDays.insert(weekday)
                                 }
                             }
+                            .accessibilityLabel(Text("\(weekday)\(isSelected ? ", selected" : "")"))
+                               .accessibilityAddTraits(isSelected ? .isSelected : [])
                     }
                 }
                 Stepper(value: $repeatInterval, in: 1 ... 4) {
@@ -159,3 +166,4 @@ struct CreateCourseView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 }
+

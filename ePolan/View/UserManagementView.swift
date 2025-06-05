@@ -7,10 +7,10 @@
 
 import SwiftUI
 
-// #Preview {
-//    @Previewable @State var accentColor: Color = .accent
-//    UserManagementView(accentColor: $accentColor)
-// }
+ #Preview {
+    @Previewable @State var accentColor: Color = .accent
+    UserManagementView(accentColor: $accentColor)
+ }
 
 struct UserManagementView: View {
     @Environment(\.openURL) var openURL

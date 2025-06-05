@@ -179,7 +179,7 @@ struct LessonsView: View, FallbackView, PostData {
     }
 
     func fetchLessons(forceRefresh: Bool = false) async {
-        #if true
+        #if RELEASE
             await fetchData(
                 forceRefresh: forceRefresh,
                 fetchOperation: { try await DBQuery.getAllLessons(courseId: course.id, forceRefresh: forceRefresh) },
@@ -193,7 +193,7 @@ struct LessonsView: View, FallbackView, PostData {
     }
 
     func fetchActivity(forceRefresh: Bool = false) async {
-        #if true
+        #if RELEASE
             await fetchData(
                 forceRefresh: forceRefresh,
                 fetchOperation: { try await DBQuery.getPointsForCourse(courseId: course.id, forceRefresh: forceRefresh) },

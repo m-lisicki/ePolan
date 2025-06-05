@@ -309,9 +309,6 @@
         }
       }
     },
-    "ePolan" : {
-      "shouldTranslate" : false
-    },
     "Every" : {
       "localizations" : {
         "pl" : {
@@ -402,16 +399,6 @@
         }
       }
     },
-    "Login" : {
-      "localizations" : {
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zaloguj"
-          }
-        }
-      }
-    },
     "Logout" : {
       "localizations" : {
         "pl" : {
@@ -483,6 +470,7 @@
       }
     },
     "Not logged in" : {
+      "extractionState" : "stale",
       "localizations" : {
         "pl" : {
           "stringUnit" : {
@@ -647,7 +635,7 @@
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : " Tydzień"
+            "value" : "tydzień"
           }
         }
       }
