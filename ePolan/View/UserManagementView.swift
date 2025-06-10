@@ -7,19 +7,15 @@
 
 import SwiftUI
 
- #Preview {
-    @Previewable @State var accentColor: Color = .accent
-    UserManagementView(accentColor: $accentColor)
- }
+#Preview {
+    UserManagementView()
+}
 
 struct UserManagementView: View {
     @Environment(\.openURL) var openURL
-    @Binding var accentColor: Color
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                BackgroundGradient()
                 Form {
                     Section("User Info") {
                         HStack {
@@ -41,10 +37,6 @@ struct UserManagementView: View {
                         }
                     }
 
-                    Section("Appearance") {
-                        ColorPicker("Accent Color", selection: $accentColor)
-                    }
-
                     Section("Contact & Support") {
                         Button {
                             let urlString = "mailto:m.lsck@icloud.com?subject=ePolan: bug report"
@@ -62,11 +54,10 @@ struct UserManagementView: View {
                         }
                     }
                 }
+                .background(BackgroundGradient())
                 .scrollContentBackground(.hidden)
-                .background(.ultraThinMaterial)
                 .navigationTitle("User Management")
                 .navigationBarTitleDisplayMode(.inline)
-            }
         }
     }
 }

@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: - Constants
 
-enum NetworkConstants {
+nonisolated enum NetworkConstants {
     static let ip = "localhost"
     static let baseUrl = "http://\(ip):8080"
     static let keycloakUrl = "http://\(ip):8280"
@@ -46,14 +46,14 @@ final class ApiClient: Sendable {
         cache.removeAllCachedResponses()
     }
 
-    static let jsonDecoder: JSONDecoder = {
+    nonisolated static let jsonDecoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .useDefaultKeys
         decoder.dateDecodingStrategy = .iso8601
         return decoder
     }()
 
-    static let jsonEncoder: JSONEncoder = {
+    nonisolated static let jsonEncoder: JSONEncoder = {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .useDefaultKeys
         encoder.outputFormatting = .prettyPrinted
@@ -224,12 +224,12 @@ enum DBQuery {
 
     // MARK: - Points - NR
 
-    private static func getPointsURL(_ courseId: UUID) -> URL { URL(string: "\(NetworkConstants.baseUrl)/points/\(courseId.uuidString)/howMany")! }
+    static private func getPointsURL(_ courseId: UUID) -> URL { URL(string: "\(NetworkConstants.baseUrl)/points/\(courseId.uuidString)/howMany")! }
     static func getPoints(courseId: UUID) async throws {
         try await send(url: getPointsURL(courseId), method: .GET)
     }
 
-    private static func getPointsForCourseURL(_ courseId: UUID) -> URL { URL(string: "\(NetworkConstants.baseUrl)/points/\(courseId.uuidString)")! }
+    static func getPointsForCourseURL(_ courseId: UUID) -> URL { URL(string: "\(NetworkConstants.baseUrl)/points/\(courseId.uuidString)")! }
     static func getPointsForCourse(courseId: UUID, forceRefresh: Bool) async throws -> [PointDto] {
         try await send(url: getPointsForCourseURL(courseId), method: .GET, forceRefresh: forceRefresh)
     }

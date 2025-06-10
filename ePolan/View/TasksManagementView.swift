@@ -7,6 +7,13 @@
 
 import SwiftUI
 
+#Preview {
+    NavigationStack {
+        TasksManagementView(lesson: LessonDto.getMockData().first!, data: [], courseID: .init())
+            .environment(NetworkMonitor())
+    }
+}
+
 struct TasksManagementView: View, FallbackView, PostData {
     @State var lesson: LessonDto
     @State var data: Set<ExerciseDto>?
@@ -21,72 +28,77 @@ struct TasksManagementView: View, FallbackView, PostData {
     let courseID: UUID
 
     var body: some View {
-        VStack {
-            if let data {
-                if !data.isEmpty {
-                    List(data.sortedByNumber(), id: \.id) { exercise in
-                        HStack {
-                            Text("\(exercise.exerciseNumber). \(exercise.subpoint ?? "")")
-                            Spacer()
-                            let siblings = data.filter { $0.exerciseNumber == exercise.exerciseNumber }
-                            let sortedSiblings = siblings.sorted { ($0.subpoint ?? "") < ($1.subpoint ?? "") }
-
-                            if siblings.count == 1 || sortedSiblings.last?.id == exercise.id {
-                                HStack {
-                                    let isOnlyBaseLast = siblings.count == 1 && exercise.exerciseNumber == (data.map(\.exerciseNumber).max() ?? Int.min)
-                                    if siblings.count > 1 || isOnlyBaseLast {
-                                        Button { removeExercise(for: exercise) } label: {
-                                            Image(systemName: "minus.diamond.fill")
+        ZStack {
+            BackgroundGradient()
+            VStack {
+                if let data {
+                    if !data.isEmpty {
+                        List(data.sortedByNumber(), id: \.id) { exercise in
+                            HStack {
+                                Text("\(exercise.exerciseNumber). \(exercise.subpoint ?? "")")
+                                Spacer()
+                                let siblings = data.filter { $0.exerciseNumber == exercise.exerciseNumber }
+                                let sortedSiblings = siblings.sorted { ($0.subpoint ?? "") < ($1.subpoint ?? "") }
+                                
+                                if siblings.count == 1 || sortedSiblings.last?.id == exercise.id {
+                                    HStack {
+                                        let isOnlyBaseLast = siblings.count == 1 && exercise.exerciseNumber == (data.map(\.exerciseNumber).max() ?? Int.min)
+                                        if siblings.count > 1 || isOnlyBaseLast {
+                                            Button { removeExercise(for: exercise) } label: {
+                                                Image(systemName: "minus.diamond.fill")
+                                            }
+                                            .buttonStyle(.borderedProminent)
                                         }
-                                        .buttonStyle(.bordered)
+                                        Button { addSubpoint(to: exercise) } label: {
+                                            Image(systemName: "plus.diamond.fill")
+                                        }
+                                        .buttonStyle(.borderedProminent)
                                     }
-                                    Button { addSubpoint(to: exercise) } label: {
-                                        Image(systemName: "plus.diamond.fill")
-                                    }
-                                    .buttonStyle(.bordered)
+                                }
+                            }
+                        }
+                    } else {
+                        Text("No exercises yet")
+                    }
+                    Button("Add exercise") {
+                        addExercise()
+                    }
+                    .buttonStyle(.glass)
+                    .padding()
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .fallbackView(viewState: viewState != .empty ? viewState : .loaded)
+            .errorAlert(isPresented: $showApiError, error: apiError)
+            .navigationTitle("Manage exercises")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done", systemImage: "checkmark") {
+                        Task {
+                            lesson.exercises = data!
+                            await postInformation(
+                                postOperation: { try await DBQuery.postExercises(lesson: lesson) },
+                                onError: { error in apiError = error },
+                            ) {
+                                dismiss()
+                                Task {
+                                    try await ApiClient.shared.removeCachedResponse(for: DBQuery.makeRequest(url: DBQuery.getAllLessonsURL(courseID), method: .GET))
                                 }
                             }
                         }
                     }
-                } else {
-                    Text("No exercises yet")
+                    .replacedWithProgressView(isPutOngoing: isPutOngoing)
+                    .disabled(lesson.exercises == data || data == nil)
                 }
-                Button("Add exercise") {
-                    addExercise()
-                }
-                .buttonStyle(.borderedProminent)
-                .padding()
             }
-        }
-        .fallbackView(viewState: viewState != .empty ? viewState : .loaded)
-        .errorAlert(isPresented: $showApiError, error: apiError)
-        .navigationTitle("Manage exercises")
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Save") {
-                    Task {
-                        lesson.exercises = data!
-                        await postInformation(
-                            postOperation: { try await DBQuery.postExercises(lesson: lesson) },
-                            onError: { error in apiError = error },
-                        ) {
-                            dismiss()
-                            Task {
-                                try await ApiClient.shared.removeCachedResponse(for: DBQuery.makeRequest(url: DBQuery.getAllLessonsURL(courseID), method: .GET))
-                            }
-                        }
-                    }
-                }
-                .replacedWithProgressView(isPutOngoing: isPutOngoing)
-                .disabled(lesson.exercises == data || data == nil)
+            .task {
+                await fetchData()
             }
-        }
-        .task {
-            await fetchData()
         }
     }
 
     func fetchData(forceRefresh: Bool = false) async {
+        #if !DEBUG
         await fetchData(
             forceRefresh: forceRefresh,
             fetchOperation: { try await Set(DBQuery.getAllExercises(lessonId: lesson.id)) },
@@ -94,6 +106,9 @@ struct TasksManagementView: View, FallbackView, PostData {
         ) {
             data in self.data = data
         }
+        #else
+        data = .init()
+        #endif
     }
 
     func addExercise() {

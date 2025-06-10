@@ -9,13 +9,13 @@ import Foundation
 
 // MARK: - Enums
 
-enum LessonStatus: String, Codable, Sendable, CaseIterable {
+enum LessonStatus: String, Codable, CaseIterable {
     case future = "FUTURE"
     case near = "NEAR"
     case past = "PAST"
 }
 
-enum DeclarationStatus: String, Codable, Sendable {
+enum DeclarationStatus: String, Codable {
     case waiting = "WAITING"
     case rejected = "REJECTED"
     case approved = "APPROVED"
@@ -23,7 +23,7 @@ enum DeclarationStatus: String, Codable, Sendable {
 
 // MARK: - Structures
 
-struct LessonTime: Codable, Hashable, Sendable {
+nonisolated struct LessonTime: Codable, Hashable {
     let dayOfWeek: String
     static func getMockData() -> [LessonTime] {
         [
@@ -34,7 +34,7 @@ struct LessonTime: Codable, Hashable, Sendable {
 }
 
 extension String {
-    func convertShortWeekDaysToFull() -> String? {
+    nonisolated func convertShortWeekDaysToFull() -> String? {
         switch self {
         case Calendar.autoupdatingCurrent.shortWeekdaySymbols[1]:
             "MONDAY"
@@ -56,7 +56,7 @@ extension String {
     }
 }
 
-struct ExerciseDto: Identifiable, Codable, Hashable, Sendable {
+nonisolated struct ExerciseDto: Identifiable, Codable, Hashable {
     let id: UUID
     let classDate: Date
     let groupName: String
@@ -83,7 +83,7 @@ struct ExerciseDto: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-struct LessonDto: Identifiable, Codable, Hashable, Sendable {
+nonisolated struct LessonDto: Identifiable, Codable, Hashable, Sendable {
     let id: UUID
     let classDate: Date
     let courseName: String
@@ -102,21 +102,19 @@ struct LessonDto: Identifiable, Codable, Hashable, Sendable {
         let now = Date()
         let exercises = ExerciseDto.getMockData()
         return [
-            .init(classDate: now.addingTimeInterval(-60 * 24 * 60 * 60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
-            .init(classDate: now.addingTimeInterval(-20 * 24 * 60 * 60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
-            .init(classDate: now.addingTimeInterval(-30 * 24 * 60 * 60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
-            .init(classDate: now, courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
-            .init(classDate: now.addingTimeInterval(-90 * 24 * 60 * 60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
-            .init(classDate: now.addingTimeInterval(-100 * 24 * 60 * 60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
-            .init(classDate: now.addingTimeInterval(-110 * 24 * 60 * 60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
-            .init(classDate: now.addingTimeInterval(-120 * 24 * 60 * 60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
-            .init(classDate: now.addingTimeInterval(-130 * 24 * 60 * 60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
-            .init(classDate: now.addingTimeInterval(30 * 24 * 60 * 60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .near),
+            .init(classDate: now.addingTimeInterval(-5 * 24 * 60 * 60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
+            .init(classDate: now.addingTimeInterval(-15 * 24 * 60 * 60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
+            .init(classDate: now.addingTimeInterval(-25 * 24 * 60 * 60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
+            .init(classDate: now.addingTimeInterval(-35 * 24 * 60 * 60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
+            .init(classDate: now.addingTimeInterval(-45 * 24 * 60 * 60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .past),
+            .init(classDate: now.addingTimeInterval(5 * 24 * 60 * 60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .near),
+            .init(classDate: now.addingTimeInterval(15 * 24 * 60 * 60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .future),
+            .init(classDate: now.addingTimeInterval(25 * 24 * 60 * 60), courseName: "SwiftUI Programming", exercises: Set(exercises), lessonStatus: .future),
         ]
     }
 }
 
-struct CourseDto: Identifiable, Codable, Hashable, Sendable {
+nonisolated struct CourseDto: Identifiable, Codable, Hashable, Sendable {
     var id: UUID = .init()
     let name: String
     let instructor: String
@@ -161,7 +159,7 @@ struct CourseDto: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-struct DeclarationDto: Identifiable, Codable, Hashable, Sendable {
+nonisolated struct DeclarationDto: Identifiable, Codable, Hashable, Sendable {
     var id: UUID = .init()
     let declarationDate: Date
     let declarationStatus: DeclarationStatus
@@ -195,7 +193,7 @@ struct DeclarationDto: Identifiable, Codable, Hashable, Sendable {
             ),
             .init(
                 declarationDate: now,
-                declarationStatus: .approved,
+                declarationStatus: .rejected,
                 exercise: exercises[2],
                 student: "",
             ),
@@ -203,7 +201,7 @@ struct DeclarationDto: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-struct PointDto: Identifiable, Codable, Hashable, Sendable {
+nonisolated struct PointDto: Identifiable, Codable, Hashable, Sendable {
     var id: UUID = .init()
     let student: String
     let lesson: LessonDto
@@ -252,16 +250,11 @@ struct PointDto: Identifiable, Codable, Hashable, Sendable {
                 lesson: lessons[7],
                 activityValue: 6.0,
             ),
-            .init(
-                student: "jane.smith@example.com",
-                lesson: lessons[8],
-                activityValue: 3.0,
-            ),
         ]
     }
 }
 
-struct NewCourseDto: Identifiable, Codable, Hashable, Sendable {
+nonisolated struct NewCourseDto: Identifiable, Codable, Hashable, Sendable {
     var id: UUID = .init()
     let name: String
     let instructor: String
@@ -300,7 +293,7 @@ struct NewCourseDto: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-struct UserDto: Codable, Hashable, Sendable {
+nonisolated struct UserDto: Codable, Hashable, Sendable {
     let email: String
     let name: String
     let surname: String
@@ -313,7 +306,7 @@ struct UserDto: Codable, Hashable, Sendable {
     }
 }
 
-struct TaskDto: Codable, Hashable, Sendable {
+nonisolated struct TaskDto: Codable, Hashable, Sendable {
     var groupId: UUID = .init()
     let courseName: String
     let dueDate: Date
@@ -342,7 +335,7 @@ struct TaskDto: Codable, Hashable, Sendable {
     }
 }
 
-struct UserInfoDto: Codable, Hashable, Sendable {
+nonisolated struct UserInfoDto: Codable, Hashable, Sendable {
     let email: String
 
     static func getMockData() -> [UserInfoDto] {

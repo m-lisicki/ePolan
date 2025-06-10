@@ -14,12 +14,17 @@ import SwiftUI
 final class UserInformation {
     static let shared = UserInformation()
     private init() {}
-
+    
     var email: String?
+    
     var isLoggedIn: Bool = false
 
     func isAuthorised(user: String) -> Bool {
+#if !DEBUG
         user == email ?? ""
+#else
+        true
+#endif
     }
 }
 
@@ -372,9 +377,7 @@ final class OAuthManager: NSObject {
         idToken = nil
         expirationDate = nil
         codeVerifier = nil
-        Task(priority: .background) { @MainActor in
-            UserInformation.shared.email = nil
-        }
+        UserInformation.shared.email = nil
     }
 }
 

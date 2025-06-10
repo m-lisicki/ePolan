@@ -7,15 +7,15 @@
 
 import SwiftUI
 
-// #Preview {
-//    BottomBarView()
-//        .environment(NetworkMonitor())
-// }
+ #Preview {
+    BottomBarView()
+        .environment(NetworkMonitor())
+ }
 
 struct ContentView: View {
     var body: some View {
         VStack {
-            #if RELEASE
+            #if !DEBUG
                 if UserInformation.shared.isLoggedIn == false {
                     SignInView()
                 } else {
@@ -29,7 +29,6 @@ struct ContentView: View {
 }
 
 struct BottomBarView: View {
-    @State var accentColor: Color = .accent
     let networkMonitor = NetworkMonitor()
 
     var body: some View {
@@ -39,11 +38,10 @@ struct BottomBarView: View {
                     Label("Courses", systemImage: "book")
                 }
                 .environment(networkMonitor)
-            UserManagementView(accentColor: $accentColor)
+            UserManagementView()
                 .tabItem {
                     Label("User", systemImage: "person.crop.circle")
                 }
         }
-        .tint(accentColor)
     }
 }

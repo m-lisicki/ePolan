@@ -7,6 +7,13 @@
 
 import SwiftUI
 
+#Preview {
+    NavigationStack {
+        TasksAssignView(title: "Hello", lessonId: .init())
+            .environment(NetworkMonitor())
+    }
+}
+
 struct TasksAssignView: View, FallbackView, PostData {
     typealias T = ExerciseDto
 
@@ -44,13 +51,14 @@ struct TasksAssignView: View, FallbackView, PostData {
                     Text("\(exercise.exerciseNumber)\(exercise.subpoint ?? "").")
                 }
             }
+            .scrollContentBackground(.hidden)
             .environment(\.editMode, $isEditing)
             .fallbackView(viewState: viewState)
         }
         .errorAlert(isPresented: $showApiError, error: apiError)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
-                Button("Save") {
+                Button("Done", systemImage: "checkmark") {
                     isPutOngoing = true
                     let added = selection.subtracting(initialSelection)
                     let removed = initialSelection.subtracting(selection)
@@ -90,37 +98,38 @@ struct TasksAssignView: View, FallbackView, PostData {
                 await fetchData()
             }
         }
+        .background(BackgroundGradient())
         .navigationTitle(title)
     }
 
     func fetchData(forceRefresh: Bool = false) async {
+#if !DEBUG
         await fetchData(
             forceRefresh: forceRefresh,
             fetchOperation: { try await DBQuery.getAllExercises(lessonId: lessonId) },
             onError: { error in apiError = error },
         ) {
             newExercises in
-            #if RELEASE
-                exercises = newExercises
-            #else
-                exercises = ExerciseDto.getMockData()
-            #endif
+                data = Set(newExercises)
         }
+#else
+        data = Set(ExerciseDto.getMockData())
+#endif
 
+#if !DEBUG
         await fetchData(
             forceRefresh: forceRefresh,
             fetchOperation: { try await DBQuery.getAllLessonDeclarations(lessonId: lessonId) },
             onError: { error in apiError = error },
         ) {
             newDeclarations in
-            #if RELEASE
                 declarations = newDeclarations
-            #else
-                declarations = Set(DeclarationDto.getMockData())
-            #endif
             selection = Set(newDeclarations.compactMap(\.exercise))
             initialSelection = selection
         }
+#else
+        declarations = Set(DeclarationDto.getMockData())
+#endif
     }
 
     func postExerciseUnDeclaration(declarationId: UUID) async {

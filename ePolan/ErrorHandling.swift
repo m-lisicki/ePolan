@@ -88,7 +88,7 @@ enum ApiError: Error {
 }
 
 extension ApiError: LocalizedError {
-    var errorDescription: String? {
+    nonisolated var errorDescription: String? {
         switch self {
         case .invalidResponse:
             "Invalid response format"

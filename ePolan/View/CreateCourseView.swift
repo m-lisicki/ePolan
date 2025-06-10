@@ -10,12 +10,15 @@ import SwiftUI
 import UserNotifications
 
 #Preview {
-    @Previewable @State var courses = CourseDto.getMockData()
-    CreateCourseView(courses: $courses)
+    @Previewable @State var courses: Set<CourseDto>? = Set(CourseDto.getMockData())
+    NavigationStack {
+        CreateCourseView(courses: $courses)
+    }
 }
 
+
 struct CreateCourseView: View {
-    @Binding var courses: [CourseDto]
+    @Binding var courses: Set<CourseDto>?
 
     @State var name = ""
     @State var instructorEmail = ""
@@ -23,7 +26,7 @@ struct CreateCourseView: View {
     @State var emailInput = ""
     @State var emails = [String]()
     @State var startDate: Date = .init()
-    @State var endDate: Date = .init().addingTimeInterval(60 * 60 * 24 * 7)
+    @State var endDate: Date = .init().addingTimeInterval(TimeInterval(60 * 60 * 24 * 7))
     @State var calendarWeekdaySymbols = Calendar.autoupdatingCurrent.shortWeekdaySymbols
     @State var repeatInterval = 1
     @State var isPutOngoing = false
@@ -48,32 +51,35 @@ struct CreateCourseView: View {
             // MARK: - Days Selection
 
             Section(header: Text("Repeat")) {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 50), spacing: 13)], spacing: 13) {
-                    ForEach(calendarWeekdaySymbols, id: \.self) { weekday in
-                        let isSelected = selectedDays.contains(weekday)
-                        Text(weekday)
-                            .font(.subheadline)
-                            .foregroundColor(isSelected ? .white : .primary)
-                            .frame(minWidth: 50, minHeight: 33)
-                            .background(
-                                            RoundedRectangle(cornerRadius: 7)
-                                                .fill(isSelected ? Color.accentColor : Color.secondary.opacity(0.2))
-                                        )
-                            .scaleEffect(isSelected ? 1.1 : 1.0)
-                            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: selectedDays)
-                            .onTapGesture {
-                                if isSelected {
-                                    selectedDays.remove(weekday)
-                                } else {
-                                    selectedDays.insert(weekday)
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 50), spacing: 13)], spacing: 13) {
+                        ForEach(calendarWeekdaySymbols, id: \.self) { weekday in
+                            let isSelected = selectedDays.contains(weekday)
+                            Text(weekday)
+                                .font(.subheadline)
+                                .frame(minWidth: 50, minHeight: 33)
+                                .glassEffect(.regular.tint(isSelected ? .blue : .clear).interactive())
+                            //                            .background(
+                            //                                RoundedRectangle(cornerRadius: 7)
+                            //                                    .fill(isSelected ? Color.accentColor : Color.secondary.opacity(0.2)),
+                            //                            )
+                            //                            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: selectedDays)
+                                .onTapGesture {
+                                    if isSelected {
+                                        selectedDays.remove(weekday)
+                                    } else {
+                                        selectedDays.insert(weekday)
+                                    }
                                 }
-                            }
-                            .accessibilityLabel(Text("\(weekday)\(isSelected ? ", selected" : "")"))
-                               .accessibilityAddTraits(isSelected ? .isSelected : [])
+                                .accessibilityLabel(Text("\(weekday)\(isSelected ? ", selected" : "")"))
+                                .accessibilityAddTraits(isSelected ? .isSelected : [])
+                        }
                     }
-                }
                 Stepper(value: $repeatInterval, in: 1 ... 4) {
-                    Text("Every") + Text(" ") + Text(repeatInterval == 1 ? "Week" : "\(repeatInterval) Weeks")
+                    if repeatInterval == 1 {
+                        Text("Every Week")
+                    } else {
+                        Text("Every \(repeatInterval) Weeks")
+                    }
                 }
             }
 
@@ -121,7 +127,7 @@ struct CreateCourseView: View {
 
             ToolbarItem(placement: .confirmationAction) {
                 if !isPutOngoing {
-                    Button("Done") {
+                    Button("Done", systemImage: "checkmark") {
                         Task {
                             do {
                                 isPutOngoing = true
@@ -135,17 +141,18 @@ struct CreateCourseView: View {
                                     frequency: repeatInterval,
                                 )
 
-                                try await withThrowingTaskGroup { group in
-                                    for email in emails {
-                                        group.addTask {
-                                            try await DBQuery.addStudent(courseId: newCourse.id, email: EmailHelper.trimCharacters(email))
+                                    try await withThrowingTaskGroup { group in
+                                        for email in emails {
+                                            group.addTask {
+                                                try await DBQuery.addStudent(courseId: newCourse.id, email: EmailHelper.trimCharacters(email))
+                                            }
                                         }
+                                        
+// TODO: - Problem with concurrency checking using new upcoming features
+//                                        try await group.next(isolation: #isolation)
                                     }
 
-                                    try await group.waitForAll()
-                                }
-
-                                courses.append(newCourse)
+                                courses?.insert(newCourse)
                                 dismiss()
                             } catch {
                                 log.error("\(error)")
@@ -166,4 +173,3 @@ struct CreateCourseView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 }
-

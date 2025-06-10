@@ -48,17 +48,25 @@ struct TasksAssignedView: View, FallbackView {
                     }
                 }
             }
+
             .refreshable {
                 await fetchData(forceRefresh: true)
             }
             .confettiCannon(trigger: $isConfettiActivated)
+            
             Stepper(value: Binding<Double>(get: { activity }, set: { activity = $0 }), in: 0 ... 5, step: 0.5) {
-                Text("Points: \(String(format: "%.1f", activity))")
-                    .accessibilityLabel("Points selector")
+                    Text("Points: \(String(format: "%.1f", activity))")
+                        .contentTransition(.numericText(value: activity))
+                        .animation(.default, value: activity)
+                        .accessibilityLabel("Points selector")
             }
             .accessibilityValue("\(String(format: "%.1f", activity)) points")
             .padding()
+            .glassEffect()
+            .padding()
         }
+        .scrollContentBackground(.hidden)
+        .background(BackgroundGradient())
         .fallbackView(viewState: viewState)
         .onChange(of: data) {
             if data?.first(where: { $0.declarationStatus == .approved }) != nil, !reduceMotion {
@@ -71,7 +79,6 @@ struct TasksAssignedView: View, FallbackView {
                 try? await Task.sleep(for: .seconds(1))
 
                 if Task.isCancelled { return }
-
                 do {
                     try await DBQuery.addPoints(lessonId: lesson.id, courseId: courseId, activityValue: newValue)
                     refreshController.triggerRefreshActivity()
@@ -94,7 +101,7 @@ struct TasksAssignedView: View, FallbackView {
     }
 
     func fetchData(forceRefresh: Bool = false) async {
-        #if RELEASE
+        #if !DEBUG
             await fetchData(
                 forceRefresh: forceRefresh,
                 fetchOperation: { try await DBQuery.getAllLessonDeclarations(lessonId: lesson.id, forceRefresh: forceRefresh) },

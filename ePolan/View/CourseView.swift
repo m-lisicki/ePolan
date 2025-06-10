@@ -8,7 +8,7 @@
 import SwiftUI
 
 #Preview {
-    CourseView()
+    BottomBarView()
         .environment(NetworkMonitor())
 }
 
@@ -52,6 +52,8 @@ struct CourseView: View, FallbackView, PostData {
                         }
                     }
                 }
+                .scrollContentBackground(.hidden)
+                .background(BackgroundGradient())
                 .refreshable {
                     await fetchData(forceRefresh: true)
                 }
@@ -63,7 +65,8 @@ struct CourseView: View, FallbackView, PostData {
                 if showAddCode {
                     JoinCourseView(isAddCodeShown: $showAddCode)
                         .transition(.slide)
-                        .background(.thinMaterial)
+                        .glassEffect()
+                        .padding()
                 }
             }
             .toolbar {
@@ -72,6 +75,7 @@ struct CourseView: View, FallbackView, PostData {
                         Image(systemName: "archivebox")
                     }
                 }
+                ToolbarSpacer(.fixed)
                 ToolbarItem {
                     Button(action: {
                         withAnimation {
@@ -114,8 +118,8 @@ struct CourseView: View, FallbackView, PostData {
                 NavigationStack {
                     ArchivedCoursesView()
                         .toolbar {
-                            ToolbarItem(placement: .cancellationAction) {
-                                Button("Cancel") {
+                            ToolbarItem() {
+                                Button("Done", systemImage: "checkmark") {
                                     showArchived = false
                                 }
                             }
@@ -125,11 +129,10 @@ struct CourseView: View, FallbackView, PostData {
             }
             .sheet(isPresented: $showCreate) {
                 NavigationStack {
-                    CreateCourseView(courses: $groupedCourses)
-                        .presentationSizing(.form)
+                    CreateCourseView(courses: $data)
                         .toolbar {
                             ToolbarItem(placement: .cancellationAction) {
-                                Button("Cancel") {
+                                Button("Cancel", systemImage: "xmark") {
                                     showCreate = false
                                 }
                             }
@@ -140,7 +143,7 @@ struct CourseView: View, FallbackView, PostData {
     }
 
     func fetchData(forceRefresh: Bool = false) async {
-        #if RELEASE
+        #if !DEBUG
             await fetchData(
                 forceRefresh: forceRefresh,
                 fetchOperation: { try await DBQuery.getAllCourses(forceRefresh: forceRefresh) },
@@ -235,7 +238,7 @@ struct ArchivedCoursesView: View, FallbackView, PostData {
     }
 
     func fetchData(forceRefresh: Bool = false) async {
-        #if RELEASE
+        #if !DEBUG
             await fetchData(
                 forceRefresh: forceRefresh,
                 fetchOperation: { try await DBQuery.getArchivedCourses() },

@@ -27,22 +27,24 @@ struct SignInView: View {
                     .italic()
 
                 VStack(spacing: 20) {
-                    Text("Not logged in")
-                        .fontWeight(.medium)
-                        .font(.headline)
-                        .padding(7)
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(5)
-
-                    Button("Login") {
-                        isPerformingTask = true
-                        Task {
-                            await OAuthManager.shared.authorize()
-                            isPerformingTask = false
+                    GlassEffectContainer {
+                        Text("Not logged in")
+                            .fontWeight(.medium)
+                            .font(.headline)
+                            .padding(7)
+                            .glassEffect(.regular,in: .rect(cornerRadius: 9.0))
+                        
+                        Button("Login") {
+                            isPerformingTask = true
+                            Task {
+                                await OAuthManager.shared.authorize()
+                                isPerformingTask = false
+                            }
                         }
+                        .disabled(isPerformingTask)
+                        .glassEffect(.regular.interactive())
+                        .buttonStyle(.borderedProminent)
                     }
-                    .disabled(isPerformingTask)
-                    .buttonStyle(.borderedProminent)
                 }
                 .padding()
             }
@@ -74,13 +76,13 @@ struct BackgroundGradient: View {
                  .black, .purple, .pink],
             smoothsColors: true,
         )
-        .onAppear {
-            if !reducedMotion {
-                withAnimation(.easeInOut(duration: 10).repeatForever(autoreverses: true)) {
-                    isAnimating.toggle()
-                }
-            }
-        }
-        .ignoresSafeArea()
+//        .onAppear {
+//            if !reducedMotion {
+//                withAnimation(.easeInOut(duration: 10).repeatForever(autoreverses: true)) {
+//                    isAnimating.toggle()
+//                }
+//            }
+//        }
+        .backgroundExtensionEffect()
     }
 }

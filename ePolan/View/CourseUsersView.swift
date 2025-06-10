@@ -55,15 +55,12 @@ struct CourseUsersView: View, FallbackView, PostData {
             }
             .errorAlert(isPresented: $showApiError, error: apiError)
             .fallbackView(viewState: viewState)
-            .listStyle(.plain)
-            .padding()
             if UserInformation.shared.isAuthorised(user: course.creator) {
                 HStack {
                     TextField("Email", text: $email)
                         .textFieldStyle(.roundedBorder)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
-
                     Button("Add") {
                         Task {
                             await addUser(email: EmailHelper.trimCharacters(email))
@@ -106,7 +103,7 @@ struct CourseUsersView: View, FallbackView, PostData {
     }
 
     func fetchData(forceRefresh: Bool = false) async {
-        #if RELEASE
+        #if !DEBUG
             await fetchData(
                 forceRefresh: forceRefresh,
                 fetchOperation: { try await DBQuery.getAllStudents(courseId: course.id) },

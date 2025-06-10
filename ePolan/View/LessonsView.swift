@@ -12,6 +12,7 @@ import SwiftUI
         LessonsView(course: CourseDto.getMockData().first!)
     }
     .environment(NetworkMonitor())
+    .environment(RefreshController())
 }
 
 struct LessonsView: View, FallbackView, PostData {
@@ -41,11 +42,10 @@ struct LessonsView: View, FallbackView, PostData {
     @State var apiError: ApiError?
     @State var isPutOngoing = false
     @State var showApiError = false
-    nonisolated static let statusOrder = ["Future", "Near", "Past"]
+    @State var showUsers = false
+    static let statusOrder = ["Future", "Near", "Past"]
     let lessonStatusArray = LessonStatus.allCases
     var body: some View {
-        VStack {
-            ZStack {
                 List {
                     ForEach(lessonStatusArray.indices, id: \.self) { i in
                         Section {
@@ -79,32 +79,34 @@ struct LessonsView: View, FallbackView, PostData {
                         }
                     }
                 }
+                .scrollContentBackground(.hidden)
+                .background(BackgroundGradient())
                 .refreshable {
                     await fetchLessons(forceRefresh: true)
                     await fetchActivity(forceRefresh: true)
                 }
                 .errorAlert(isPresented: $showApiError, error: apiError)
-            }
             .fallbackView(viewState: viewState)
             .overlay(alignment: .bottom) {
                 if showCreate {
                     CreateLessonView(courseId: course.id, showCreate: $showCreate)
                         .transition(.slide)
-                        .background(.thinMaterial)
                         .environment(refreshController)
+                        .glassEffect()
+                        .padding()
                 }
             }
-        }
         .sheet(isPresented: $showCharts) {
             NavigationStack {
                 ChartsView(pointsArray: pointsArray)
                     .toolbar {
                         ToolbarItem(placement: .automatic) {
-                            Button("Done") {
+                            Button("Done", systemImage: "checkmark") {
                                 showCharts = false
                             }
                         }
                     }
+                    .presentationDetents([.medium])
             }
         }
         .task {
@@ -113,6 +115,16 @@ struct LessonsView: View, FallbackView, PostData {
 
             await lessonsTask
             await activityTask
+        }
+        .sheet(isPresented: $showUsers) {
+            NavigationStack {
+                CourseUsersView(course: course)
+                    .toolbar {
+                        Button("Done", systemImage: "checkmark") {
+                            showUsers = false
+                        }
+                    }
+            }
         }
         .toolbar {
             ToolbarItem {
@@ -124,10 +136,9 @@ struct LessonsView: View, FallbackView, PostData {
                 .accessibilityLabel("Show activity statistics")
             }
             ToolbarItem {
-                NavigationLink(destination: CourseUsersView(course: course)) {
-                    Image(systemName: UserInformation.shared.isAuthorised(user: course.creator) ? "person.2.badge.gearshape" : "person.2").symbolRenderingMode(.palette)
+                Button("Show course members", systemImage: UserInformation.shared.isAuthorised(user: course.creator) ? "person.2.badge.gearshape" : "person.2") {
+                    showUsers.toggle()
                 }
-                .accessibilityLabel("Show course members")
             }
             if UserInformation.shared.isAuthorised(user: course.creator) {
                 ToolbarItem {
@@ -143,6 +154,7 @@ struct LessonsView: View, FallbackView, PostData {
         }
         .onReceive(refreshController.refreshSignalActivity) { _ in
             Task {
+                try await ApiClient.shared.removeCachedResponse(for: DBQuery.makeRequest(url: DBQuery.getPointsForCourseURL(course.id), method: .GET))
                 await fetchActivity()
             }
         }
@@ -179,7 +191,7 @@ struct LessonsView: View, FallbackView, PostData {
     }
 
     func fetchLessons(forceRefresh: Bool = false) async {
-        #if RELEASE
+        #if !DEBUG
             await fetchData(
                 forceRefresh: forceRefresh,
                 fetchOperation: { try await DBQuery.getAllLessons(courseId: course.id, forceRefresh: forceRefresh) },
@@ -193,7 +205,7 @@ struct LessonsView: View, FallbackView, PostData {
     }
 
     func fetchActivity(forceRefresh: Bool = false) async {
-        #if RELEASE
+        #if !DEBUG
             await fetchData(
                 forceRefresh: forceRefresh,
                 fetchOperation: { try await DBQuery.getPointsForCourse(courseId: course.id, forceRefresh: forceRefresh) },
@@ -208,7 +220,8 @@ struct LessonsView: View, FallbackView, PostData {
 
     @ViewBuilder
     func lessonView(for lesson: LessonDto, activity: Double) -> some View {
-        if lesson.status == .past {
+        switch lesson.status {
+        case .past:
             NavigationLink(destination: TasksAssignedView(title: formattedDate(from: lesson.classDate), lesson: lesson, courseId: course.id, activity: activity).environment(refreshController)) {
                 HStack {
                     Text(formattedDate(from: lesson.classDate))
@@ -220,7 +233,7 @@ struct LessonsView: View, FallbackView, PostData {
                 }
             }
             .accessibilityHint("Check assigned tasks")
-        } else if lesson.status == .near {
+        case .near:
             if lesson.exercises.isEmpty {
                 if UserInformation.shared.isAuthorised(user: course.creator) {
                     NavigationLink(destination: TasksManagementView(lesson: lesson, courseID: course.id)) {
@@ -244,7 +257,7 @@ struct LessonsView: View, FallbackView, PostData {
                 }
                 .accessibilityHint("Declare exercises")
             }
-        } else {
+        case .future:
             if UserInformation.shared.isAuthorised(user: course.creator) {
                 NavigationLink(destination: TasksManagementView(lesson: lesson, courseID: course.id)) {
                     Text(formattedDate(from: lesson.classDate))
