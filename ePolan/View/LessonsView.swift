@@ -15,7 +15,7 @@ import SwiftUI
     .environment(RefreshController())
 }
 
-struct LessonsView: View, FallbackView, PostData {
+struct LessonsView: View, @MainActor FallbackView, PostData {
     typealias T = LessonDto
 
     let course: CourseDto
@@ -79,8 +79,9 @@ struct LessonsView: View, FallbackView, PostData {
                         }
                     }
                 }
-                .scrollContentBackground(.hidden)
-                .background(BackgroundGradient())
+#if !os(macOS)
+                .listStyle(.insetGrouped)
+#endif
                 .refreshable {
                     await fetchLessons(forceRefresh: true)
                     await fetchActivity(forceRefresh: true)
@@ -135,6 +136,7 @@ struct LessonsView: View, FallbackView, PostData {
                 }
                 .accessibilityLabel("Show activity statistics")
             }
+            ToolbarSpacer(.fixed)
             ToolbarItem {
                 Button("Show course members", systemImage: UserInformation.shared.isAuthorised(user: course.creator) ? "person.2.badge.gearshape" : "person.2") {
                     showUsers.toggle()
@@ -173,7 +175,9 @@ struct LessonsView: View, FallbackView, PostData {
             }
         }
         .navigationTitle("Lessons")
+#if !os(macOS)
         .navigationBarTitleDisplayMode(.inline)
+#endif
     }
 
     func deleteLesson(lesson: LessonDto) async throws {
@@ -236,7 +240,7 @@ struct LessonsView: View, FallbackView, PostData {
         case .near:
             if lesson.exercises.isEmpty {
                 if UserInformation.shared.isAuthorised(user: course.creator) {
-                    NavigationLink(destination: TasksManagementView(lesson: lesson, courseID: course.id)) {
+                    NavigationLink(destination: TasksManagementView(lesson: lesson, title: formattedDate(from: lesson.classDate), courseID: course.id)) {
                         Text(formattedDate(from: lesson.classDate))
                             .font(.headline)
                     }
@@ -259,7 +263,7 @@ struct LessonsView: View, FallbackView, PostData {
             }
         case .future:
             if UserInformation.shared.isAuthorised(user: course.creator) {
-                NavigationLink(destination: TasksManagementView(lesson: lesson, courseID: course.id)) {
+                NavigationLink(destination: TasksManagementView(lesson: lesson, title: formattedDate(from: lesson.classDate), courseID: course.id)) {
                     Text(formattedDate(from: lesson.classDate))
                         .font(.headline)
                 }

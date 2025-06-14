@@ -15,7 +15,7 @@ import SwiftUI
         .environment(RefreshController())
 }
 
-struct TasksAssignedView: View, FallbackView {
+struct TasksAssignedView: View, @MainActor FallbackView {
     typealias T = DeclarationDto
 
     let title: String
@@ -53,20 +53,20 @@ struct TasksAssignedView: View, FallbackView {
                 await fetchData(forceRefresh: true)
             }
             .confettiCannon(trigger: $isConfettiActivated)
-            
-            Stepper(value: Binding<Double>(get: { activity }, set: { activity = $0 }), in: 0 ... 5, step: 0.5) {
+            .overlay(alignment: .bottom) {
+                Stepper(value: Binding<Double>(get: { activity }, set: { activity = $0 }), in: 0 ... 5, step: 0.5) {
                     Text("Points: \(String(format: "%.1f", activity))")
                         .contentTransition(.numericText(value: activity))
                         .animation(.default, value: activity)
                         .accessibilityLabel("Points selector")
+                }
+                .accessibilityValue("\(String(format: "%.1f", activity)) points")
+                .padding()
+                .glassEffect()
+                .padding()
             }
-            .accessibilityValue("\(String(format: "%.1f", activity)) points")
-            .padding()
-            .glassEffect()
-            .padding()
         }
-        .scrollContentBackground(.hidden)
-        .background(BackgroundGradient())
+
         .fallbackView(viewState: viewState)
         .onChange(of: data) {
             if data?.first(where: { $0.declarationStatus == .approved }) != nil, !reduceMotion {
@@ -97,7 +97,9 @@ struct TasksAssignedView: View, FallbackView {
             }
         }
         .navigationTitle(title)
+#if !os(macOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 
     func fetchData(forceRefresh: Bool = false) async {

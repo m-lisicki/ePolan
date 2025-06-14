@@ -28,7 +28,9 @@ struct ChartsView: View {
                 .padding()
         }
         .navigationTitle("Graphs")
+        #if !os(macOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 }
 

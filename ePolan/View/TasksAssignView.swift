@@ -14,10 +14,11 @@ import SwiftUI
     }
 }
 
-struct TasksAssignView: View, FallbackView, PostData {
+struct TasksAssignView: View, @MainActor FallbackView, PostData {
     typealias T = ExerciseDto
-
+#if !os(macOS)
     @State var isEditing: EditMode = .active
+    #endif
     @State var isPutOngoing = false
 
     let title: String
@@ -51,8 +52,9 @@ struct TasksAssignView: View, FallbackView, PostData {
                     Text("\(exercise.exerciseNumber)\(exercise.subpoint ?? "").")
                 }
             }
-            .scrollContentBackground(.hidden)
+#if !os(macOS)
             .environment(\.editMode, $isEditing)
+            #endif
             .fallbackView(viewState: viewState)
         }
         .errorAlert(isPresented: $showApiError, error: apiError)
@@ -98,8 +100,10 @@ struct TasksAssignView: View, FallbackView, PostData {
                 await fetchData()
             }
         }
-        .background(BackgroundGradient())
         .navigationTitle(title)
+        #if !os(macOS)
+        .navigationBarTitleDisplayMode(.inline)
+#endif
     }
 
     func fetchData(forceRefresh: Bool = false) async {

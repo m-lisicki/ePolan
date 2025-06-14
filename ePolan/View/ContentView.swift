@@ -9,7 +9,6 @@ import SwiftUI
 
  #Preview {
     BottomBarView()
-        .environment(NetworkMonitor())
  }
 
 struct ContentView: View {
@@ -29,19 +28,14 @@ struct ContentView: View {
 }
 
 struct BottomBarView: View {
-    let networkMonitor = NetworkMonitor()
-
     var body: some View {
-        TabView {
-            CourseView()
-                .tabItem {
-                    Label("Courses", systemImage: "book")
+                NavigationSplitView {
+                    CourseView()
+                } content: {
+                    ContentUnavailableView("No courses selected", systemImage: "book")
+                } detail: {
+                    ContentUnavailableView("No lesson selected", systemImage: "person.crop.circle")
                 }
-                .environment(networkMonitor)
-            UserManagementView()
-                .tabItem {
-                    Label("User", systemImage: "person.crop.circle")
-                }
-        }
+                .environment(NetworkMonitor())
     }
 }

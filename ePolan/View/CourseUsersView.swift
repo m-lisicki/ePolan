@@ -59,8 +59,10 @@ struct CourseUsersView: View, FallbackView, PostData {
                 HStack {
                     TextField("Email", text: $email)
                         .textFieldStyle(.roundedBorder)
+#if !os(macOS)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
+                    #endif
                     Button("Add") {
                         Task {
                             await addUser(email: EmailHelper.trimCharacters(email))
@@ -82,7 +84,12 @@ struct CourseUsersView: View, FallbackView, PostData {
                 }
                 Spacer()
                 Button("Copy") {
+                    #if os(macOS)
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(course.courseCode, forType: .string)
+                    #else
                     UIPasteboard.general.string = course.courseCode
+                    #endif
                 }
                 .buttonStyle(.borderedProminent)
             }
@@ -94,7 +101,9 @@ struct CourseUsersView: View, FallbackView, PostData {
             }
         }
         .navigationTitle("Course users")
+        #if !os(macOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task {
             if networkMonitor.isConnected {
                 await fetchData()

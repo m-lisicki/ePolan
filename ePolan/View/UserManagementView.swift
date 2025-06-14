@@ -16,48 +16,69 @@ struct UserManagementView: View {
 
     var body: some View {
         NavigationStack {
-                Form {
-                    Section("User Info") {
-                        HStack {
-                            Label("Email", systemImage: "envelope")
-                            Spacer()
-                            Text(UserInformation.shared.email ?? "")
-                                .foregroundColor(.secondary)
-                                .redacted(reason: UserInformation.shared.email?.isEmpty ?? false ? .placeholder : [])
-                        }
-                        Link("Manage account", destination: URL(string: "\(NetworkConstants.keycloakUrl)/realms/Users/account")!)
-                        Button(role: .destructive) {
-                            OAuthManager.shared.logout()
-                        } label: {
-                            HStack {
-                                Spacer()
-                                Text("Logout")
-                                Spacer()
-                            }
-                        }
+            Form {
+                Section("User Info") {
+                    HStack {
+                        Label("Email", systemImage: "envelope")
+                        Spacer()
+                        Text(UserInformation.shared.email ?? "")
+                            .foregroundColor(.secondary)
+                            .redacted(reason: UserInformation.shared.email?.isEmpty ?? false ? .placeholder : [])
                     }
-
-                    Section("Contact & Support") {
-                        Button {
-                            let urlString = "mailto:m.lsck@icloud.com?subject=ePolan: bug report"
-                            openURL(URL(string: urlString)!)
-                        } label: {
-                            HStack {
-                                Label("Report a Problem", systemImage: "exclamationmark.triangle")
-                            }
-                        }
-                        Button {
-                            let urlString = "mailto:m.lsck@icloud.com?subject=ePolan: feedback"
-                            openURL(URL(string: urlString)!)
-                        } label: {
-                            Label("Give Feedback", systemImage: "bubble.left.and.text.bubble.right")
+                    Link("Manage account", destination: URL(string: "\(NetworkConstants.keycloakUrl)/realms/Users/account")!)
+                    Button(role: .destructive) {
+                        OAuthManager.shared.logout()
+                    } label: {
+                        HStack {
+                            Spacer()
+                            Text("Logout")
+                            Spacer()
                         }
                     }
                 }
-                .background(BackgroundGradient())
-                .scrollContentBackground(.hidden)
-                .navigationTitle("User Management")
-                .navigationBarTitleDisplayMode(.inline)
+
+                Section("Contact & Support") {
+                    #if !os(macOS)
+                    reportProblemButton()
+                    giveFeedbackButton()
+                    #else
+                    HStack {
+                        reportProblemButton()
+                        giveFeedbackButton()
+                    }
+                    #endif
+                }
+            }
+            .navigationTitle("User Management")
+#if !os(macOS)
+            .background(BackgroundGradient())
+            .navigationBarTitleDisplayMode(.inline)
+#else
+            .formStyle(.grouped)
+#endif
         }
     }
+
+    @ViewBuilder
+    func createMailButton(subject: String, label: String, systemImage: String) -> some View {
+        Button {
+            let urlString = "mailto:m.lsck@icloud.com?subject=\(subject)"
+            if let url = URL(string: urlString) {
+                openURL(url)
+            }
+        } label: {
+            Label(label, systemImage: systemImage)
+        }
+    }
+
+    @ViewBuilder
+    func reportProblemButton() -> some View {
+        createMailButton(subject: "ePolan: bug report", label: "Report a Problem", systemImage: "exclamationmark.triangle")
+    }
+
+    @ViewBuilder
+    func giveFeedbackButton() -> some View {
+        createMailButton(subject: "ePolan: feedback", label: "Give Feedback", systemImage: "bubble.left.and.text.bubble.right")
+    }
+
 }

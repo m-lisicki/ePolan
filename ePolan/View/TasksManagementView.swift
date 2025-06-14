@@ -9,15 +9,16 @@ import SwiftUI
 
 #Preview {
     NavigationStack {
-        TasksManagementView(lesson: LessonDto.getMockData().first!, data: [], courseID: .init())
+        TasksManagementView(lesson: LessonDto.getMockData().first!, data: [], title: "Course", courseID: .init())
             .environment(NetworkMonitor())
     }
 }
 
-struct TasksManagementView: View, FallbackView, PostData {
+struct TasksManagementView: View, @MainActor FallbackView, PostData {
     @State var lesson: LessonDto
     @State var data: Set<ExerciseDto>?
 
+    let title: String
     @Environment(\.dismiss) var dismiss
     @Environment(NetworkMonitor.self) var networkMonitor
 
@@ -28,50 +29,60 @@ struct TasksManagementView: View, FallbackView, PostData {
     let courseID: UUID
 
     var body: some View {
-        ZStack {
-            BackgroundGradient()
             VStack {
                 if let data {
                     if !data.isEmpty {
-                        List(data.sortedByNumber(), id: \.id) { exercise in
-                            HStack {
-                                Text("\(exercise.exerciseNumber). \(exercise.subpoint ?? "")")
-                                Spacer()
-                                let siblings = data.filter { $0.exerciseNumber == exercise.exerciseNumber }
-                                let sortedSiblings = siblings.sorted { ($0.subpoint ?? "") < ($1.subpoint ?? "") }
-                                
-                                if siblings.count == 1 || sortedSiblings.last?.id == exercise.id {
-                                    HStack {
-                                        let isOnlyBaseLast = siblings.count == 1 && exercise.exerciseNumber == (data.map(\.exerciseNumber).max() ?? Int.min)
-                                        if siblings.count > 1 || isOnlyBaseLast {
-                                            Button { removeExercise(for: exercise) } label: {
-                                                Image(systemName: "minus.diamond.fill")
+                        ScrollViewReader { proxy in
+                            let sorted = data.sortedByNumber()
+                            List(sorted, id: \.id) { exercise in
+                                HStack {
+                                    Text("\(exercise.exerciseNumber). \(exercise.subpoint ?? "")")
+                                    Spacer()
+                                    let siblings = data.filter { $0.exerciseNumber == exercise.exerciseNumber }
+                                    let sortedSiblings = siblings.sorted { ($0.subpoint ?? "") < ($1.subpoint ?? "") }
+                                    
+                                    if siblings.count == 1 || sortedSiblings.last?.id == exercise.id {
+                                        HStack {
+                                            let isOnlyBaseLast = siblings.count == 1 && exercise.exerciseNumber == (data.map(\.exerciseNumber).max() ?? Int.min)
+                                            if siblings.count > 1 || isOnlyBaseLast {
+                                                Button { removeExercise(for: exercise) } label: {
+                                                    Image(systemName: "minus.diamond.fill")
+                                                }
+                                                .buttonStyle(.borderedProminent)
+                                            }
+                                            Button { addSubpoint(to: exercise) } label: {
+                                                Image(systemName: "plus.diamond.fill")
                                             }
                                             .buttonStyle(.borderedProminent)
                                         }
-                                        Button { addSubpoint(to: exercise) } label: {
-                                            Image(systemName: "plus.diamond.fill")
-                                        }
-                                        .buttonStyle(.borderedProminent)
                                     }
-                                }
+                                }.id(exercise.self)
+                            }.onChange(of: data.count) {
+                                proxy.scrollTo(sorted.last, anchor: .bottom)
                             }
                         }
                     } else {
-                        Text("No exercises yet")
+                        ContentUnavailableView("No exercises yet", systemImage: "book")
                     }
+                }
+            }
+            .fallbackView(viewState: viewState != .empty ? viewState : .loaded)
+            .errorAlert(isPresented: $showApiError, error: apiError)
+            .navigationTitle(lesson.classDate.formatted())
+            .toolbar {
+                #if !os(macOS)
+                ToolbarItem(placement: .bottomBar) {
                     Button("Add exercise") {
                         addExercise()
                     }
-                    .buttonStyle(.glass)
-                    .padding()
                 }
-            }
-            .scrollContentBackground(.hidden)
-            .fallbackView(viewState: viewState != .empty ? viewState : .loaded)
-            .errorAlert(isPresented: $showApiError, error: apiError)
-            .navigationTitle("Manage exercises")
-            .toolbar {
+                #else
+                ToolbarItem {
+                    Button("Add exercise") {
+                        addExercise()
+                    }
+                }
+                #endif
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done", systemImage: "checkmark") {
                         Task {
@@ -94,7 +105,10 @@ struct TasksManagementView: View, FallbackView, PostData {
             .task {
                 await fetchData()
             }
-        }
+            .navigationTitle(title)
+        #if !os(macOS)
+            .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 
     func fetchData(forceRefresh: Bool = false) async {

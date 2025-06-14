@@ -23,7 +23,7 @@ enum DeclarationStatus: String, Codable {
 
 // MARK: - Structures
 
-nonisolated struct LessonTime: Codable, Hashable {
+struct LessonTime: @MainActor Codable, Hashable {
     let dayOfWeek: String
     static func getMockData() -> [LessonTime] {
         [
@@ -34,7 +34,7 @@ nonisolated struct LessonTime: Codable, Hashable {
 }
 
 extension String {
-    nonisolated func convertShortWeekDaysToFull() -> String? {
+     func convertShortWeekDaysToFull() -> String? {
         switch self {
         case Calendar.autoupdatingCurrent.shortWeekdaySymbols[1]:
             "MONDAY"
@@ -56,7 +56,7 @@ extension String {
     }
 }
 
-nonisolated struct ExerciseDto: Identifiable, Codable, Hashable {
+struct ExerciseDto: Identifiable, @MainActor Codable, Hashable {
     let id: UUID
     let classDate: Date
     let groupName: String
@@ -83,7 +83,7 @@ nonisolated struct ExerciseDto: Identifiable, Codable, Hashable {
     }
 }
 
-nonisolated struct LessonDto: Identifiable, Codable, Hashable, Sendable {
+struct LessonDto: Identifiable, @MainActor Codable, Hashable, Sendable {
     let id: UUID
     let classDate: Date
     let courseName: String
@@ -114,8 +114,9 @@ nonisolated struct LessonDto: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-nonisolated struct CourseDto: Identifiable, Codable, Hashable, Sendable {
+struct CourseDto: Identifiable, @MainActor Codable, Hashable, Sendable {
     var id: UUID = .init()
+    
     let name: String
     let instructor: String
     let creator: String
@@ -125,8 +126,8 @@ nonisolated struct CourseDto: Identifiable, Codable, Hashable, Sendable {
     let endDate: Date
     let frequency: Int
     let courseCode: String
-
-    static func getMockData() -> [CourseDto] {
+    
+    @MainActor static func getMockData() -> [CourseDto] {
         let now = Date()
         let lessonTimes = Set(LessonTime.getMockData())
         let lessons = Set(LessonDto.getMockData())
@@ -159,7 +160,7 @@ nonisolated struct CourseDto: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-nonisolated struct DeclarationDto: Identifiable, Codable, Hashable, Sendable {
+struct DeclarationDto: Identifiable, @MainActor Codable, Hashable, Sendable {
     var id: UUID = .init()
     let declarationDate: Date
     let declarationStatus: DeclarationStatus
@@ -201,7 +202,7 @@ nonisolated struct DeclarationDto: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-nonisolated struct PointDto: Identifiable, Codable, Hashable, Sendable {
+struct PointDto: Identifiable, @MainActor Codable, Hashable, Sendable {
     var id: UUID = .init()
     let student: String
     let lesson: LessonDto
@@ -254,7 +255,7 @@ nonisolated struct PointDto: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-nonisolated struct NewCourseDto: Identifiable, Codable, Hashable, Sendable {
+struct NewCourseDto: Identifiable, @MainActor Codable, Hashable, Sendable {
     var id: UUID = .init()
     let name: String
     let instructor: String
@@ -293,7 +294,7 @@ nonisolated struct NewCourseDto: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-nonisolated struct UserDto: Codable, Hashable, Sendable {
+struct UserDto: @MainActor Codable, Hashable, Sendable {
     let email: String
     let name: String
     let surname: String
@@ -306,7 +307,7 @@ nonisolated struct UserDto: Codable, Hashable, Sendable {
     }
 }
 
-nonisolated struct TaskDto: Codable, Hashable, Sendable {
+struct TaskDto: @MainActor Codable, Hashable, Sendable {
     var groupId: UUID = .init()
     let courseName: String
     let dueDate: Date
@@ -335,7 +336,7 @@ nonisolated struct TaskDto: Codable, Hashable, Sendable {
     }
 }
 
-nonisolated struct UserInfoDto: Codable, Hashable, Sendable {
+struct UserInfoDto: @MainActor Codable, Hashable, Sendable {
     let email: String
 
     static func getMockData() -> [UserInfoDto] {

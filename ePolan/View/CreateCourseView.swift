@@ -57,12 +57,12 @@ struct CreateCourseView: View {
                             Text(weekday)
                                 .font(.subheadline)
                                 .frame(minWidth: 50, minHeight: 33)
-                                .glassEffect(.regular.tint(isSelected ? .blue : .clear).interactive())
-                            //                            .background(
-                            //                                RoundedRectangle(cornerRadius: 7)
-                            //                                    .fill(isSelected ? Color.accentColor : Color.secondary.opacity(0.2)),
-                            //                            )
-                            //                            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: selectedDays)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 7)
+                                        .fill(isSelected ? Color.accentColor : Color.secondary.opacity(0.2))
+                                )
+                                .scaleEffect(isSelected ? 1.1 : 1.0)
+                                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: selectedDays)
                                 .onTapGesture {
                                     if isSelected {
                                         selectedDays.remove(weekday)
@@ -95,8 +95,10 @@ struct CreateCourseView: View {
             Section(header: Text("Invite")) {
                 HStack {
                     TextField("Enter instructor email", text: $instructorEmail)
+#if !os(macOS)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
+                    #endif
                     if let email = UserInformation.shared.email, instructorEmail != email {
                         Button("Me") {
                             instructorEmail = email
@@ -105,8 +107,10 @@ struct CreateCourseView: View {
                 }
                 HStack {
                     TextField("Enter student email", text: $emailInput)
+#if !os(macOS)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
+#endif
                     Button("Add") {
                         emails.append(EmailHelper.trimCharacters(emailInput))
                         emailInput = ""
@@ -170,6 +174,10 @@ struct CreateCourseView: View {
         }
         .errorAlert(isPresented: $showApiError, error: apiError)
         .navigationTitle("Create Course")
+        #if !os(macOS)
         .navigationBarTitleDisplayMode(.inline)
+        #else
+        .formStyle(.grouped)
+        #endif
     }
 }

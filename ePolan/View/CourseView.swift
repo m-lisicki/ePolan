@@ -12,7 +12,7 @@ import SwiftUI
         .environment(NetworkMonitor())
 }
 
-struct CourseView: View, FallbackView, PostData {
+struct CourseView: View, @MainActor FallbackView, PostData {
     typealias T = CourseDto
 
     @State var data: Set<CourseDto>? {
@@ -28,32 +28,42 @@ struct CourseView: View, FallbackView, PostData {
 
     var refreshController = RefreshController()
     @Environment(NetworkMonitor.self) var networkMonitor
-
+    
     @State var showApiError: Bool = false
     @State var isPutOngoing = false
     @State var apiError: ApiError?
-
+    
+    @State var searchText = String()
+    
+    var searchResults: [CourseDto] {
+            if searchText.isEmpty {
+                return groupedCourses
+            } else {
+                return groupedCourses.filter { $0.name.localizedCaseInsensitiveContains(searchText)}
+            }
+    }
+    
+    @Namespace private var namespace
     var body: some View {
-        NavigationStack {
             VStack {
-                List($groupedCourses, id: \.id) { $course in
-                    NavigationLink(destination: LessonsView(course: course).environment(refreshController)) {
-                        Text(course.name)
-                            .font(.headline)
-                    }
-                    .swipeActions {
-                        Button("Archive") {
-                            Task {
-                                await postInformation(
-                                    postOperation: { try await DBQuery.archiveCourse(courseId: course.id) },
-                                    onError: { error in apiError = error },
-                                ) { data?.remove(course) }
+                List {
+                    ForEach(searchResults, id: \.id) { course in
+                        NavigationLink(destination: LessonsView(course: course).environment(refreshController)) {
+                            Text(course.name)
+                                .font(.headline)
+                        }
+                        .swipeActions {
+                            Button("Archive") {
+                                Task {
+                                    await postInformation(
+                                        postOperation: { try await DBQuery.archiveCourse(courseId: course.id) },
+                                        onError: { error in apiError = error },
+                                    ) { data?.remove(course) }
+                                }
                             }
                         }
                     }
                 }
-                .scrollContentBackground(.hidden)
-                .background(BackgroundGradient())
                 .refreshable {
                     await fetchData(forceRefresh: true)
                 }
@@ -65,35 +75,36 @@ struct CourseView: View, FallbackView, PostData {
                 if showAddCode {
                     JoinCourseView(isAddCodeShown: $showAddCode)
                         .transition(.slide)
-                        .glassEffect()
                         .padding()
                 }
             }
             .toolbar {
                 ToolbarItem {
-                    Button(action: { showArchived = true }) {
-                        Image(systemName: "archivebox")
-                    }
+                    Button("Archive", systemImage: "archivebox") { showArchived = true  }
                 }
+#if !os(macOS)
+                .matchedTransitionSource(id: "archive", in: namespace)
+#endif
                 ToolbarSpacer(.fixed)
-                ToolbarItem {
-                    Button(action: {
-                        withAnimation {
-                            showAddCode.toggle()
+                    ToolbarItem {
+                        Menu("Add Course", systemImage: "person.2.badge.plus") {
+                            Button(action: {
+                                withAnimation {
+                                    showAddCode.toggle()
+                                }
+                            }) {
+                                Label("Join course", systemImage: "person.2.badge.plus")
+                            }
+                            Button(action: { showCreate = true }) {
+                                Label("Create new course", systemImage: "plus.rectangle.on.rectangle")
+                            }
                         }
-                    }) {
-                        Image(systemName: "person.2.badge.plus")
                     }
-                    .accessibilityLabel("Join course")
-                }
-
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: { showCreate = true }) {
-                        Image(systemName: "plus.rectangle.on.rectangle")
-                    }
-                    .accessibilityLabel("Add new course")
-                }
+                    
             }
+#if !os(macOS)
+            .tabBarMinimizeBehavior(.onScrollDown)
+        #endif
             .task {
                 await fetchData()
             }
@@ -126,6 +137,9 @@ struct CourseView: View, FallbackView, PostData {
                         }
                         .environment(refreshController)
                 }
+#if !os(macOS)
+                .navigationTransition(.zoom(sourceID: "archive", in: namespace))
+                #endif
             }
             .sheet(isPresented: $showCreate) {
                 NavigationStack {
@@ -139,7 +153,6 @@ struct CourseView: View, FallbackView, PostData {
                         }
                 }
             }
-        }
     }
 
     func fetchData(forceRefresh: Bool = false) async {
@@ -152,7 +165,8 @@ struct CourseView: View, FallbackView, PostData {
                 data in self.data = data
             }
         #else
-            data = Set(CourseDto.getMockData())
+        data = Set(CourseDto.getMockData())
+            groupedCourses = CourseDto.getMockData()
         #endif
     }
 }
@@ -189,7 +203,7 @@ struct JoinCourseView: View, PostData {
     }
 }
 
-struct ArchivedCoursesView: View, FallbackView, PostData {
+struct ArchivedCoursesView: View, @MainActor FallbackView, PostData {
     typealias T = CourseDto
 
     @State var data: Set<CourseDto>? {
@@ -232,7 +246,9 @@ struct ArchivedCoursesView: View, FallbackView, PostData {
             }
         }
         .navigationTitle("Archived Courses")
+#if !os(macOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .fallbackView(viewState: viewState)
         .errorAlert(isPresented: $showApiError, error: apiError)
     }

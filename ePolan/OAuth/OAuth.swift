@@ -385,10 +385,14 @@ final class OAuthManager: NSObject {
 
 extension OAuthManager: ASWebAuthenticationPresentationContextProviding {
     func presentationAnchor(for _: ASWebAuthenticationSession) -> ASPresentationAnchor {
+#if !os(macOS)
         UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows)
             .first { $0.isKeyWindow }!
+#else
+        NSApplication.shared.windows.first { $0.isKeyWindow }!
+#endif
     }
 }
 

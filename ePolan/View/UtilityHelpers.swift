@@ -6,6 +6,16 @@
 //
 
 import Foundation
+import SwiftUI
+
+@Observable
+final class Navigator {
+    static var shared = Navigator()
+    private init() {}
+    
+    var path = NavigationPath()
+    
+}
 
 enum EmailHelper {
     static func trimCharacters(_ email: String) -> String {
