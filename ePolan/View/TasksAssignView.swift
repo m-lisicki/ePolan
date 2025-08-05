@@ -86,7 +86,6 @@ struct TasksAssignView: View, @MainActor FallbackView, PostData {
 
                     initialSelection = selection
                     isPutOngoing = false
-                    dismiss()
                 }
                 .replacedWithProgressView(isPutOngoing: isPutOngoing)
                 .disabled(initialSelection == selection)

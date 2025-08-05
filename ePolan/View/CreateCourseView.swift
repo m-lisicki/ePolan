@@ -128,7 +128,6 @@ struct CreateCourseView: View {
         }
         .toolbar {
             // MARK: - Done Button
-
             ToolbarItem(placement: .confirmationAction) {
                 if !isPutOngoing {
                     Button("Done", systemImage: "checkmark") {
@@ -174,10 +173,9 @@ struct CreateCourseView: View {
         }
         .errorAlert(isPresented: $showApiError, error: apiError)
         .navigationTitle("Create Course")
+        .formStyle(.grouped)
         #if !os(macOS)
         .navigationBarTitleDisplayMode(.inline)
-        #else
-        .formStyle(.grouped)
         #endif
     }
 }

@@ -39,8 +39,8 @@ struct UserManagementView: View {
 
                 Section("Contact & Support") {
                     #if !os(macOS)
-                    reportProblemButton()
-                    giveFeedbackButton()
+                    reportProblemButton
+                    giveFeedbackButton
                     #else
                     HStack {
                         reportProblemButton()
@@ -50,11 +50,10 @@ struct UserManagementView: View {
                 }
             }
             .navigationTitle("User Management")
+            .formStyle(.grouped)
 #if !os(macOS)
             .background(BackgroundGradient())
             .navigationBarTitleDisplayMode(.inline)
-#else
-            .formStyle(.grouped)
 #endif
         }
     }
@@ -72,12 +71,12 @@ struct UserManagementView: View {
     }
 
     @ViewBuilder
-    func reportProblemButton() -> some View {
+    var reportProblemButton: some View {
         createMailButton(subject: "ePolan: bug report", label: "Report a Problem", systemImage: "exclamationmark.triangle")
     }
 
     @ViewBuilder
-    func giveFeedbackButton() -> some View {
+    var giveFeedbackButton: some View {
         createMailButton(subject: "ePolan: feedback", label: "Give Feedback", systemImage: "bubble.left.and.text.bubble.right")
     }
 

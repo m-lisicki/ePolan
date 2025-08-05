@@ -16,8 +16,6 @@ import SwiftUI
 }
 
 struct LessonsView: View, @MainActor FallbackView, PostData {
-    typealias T = LessonDto
-
     let course: CourseDto
 
     @Environment(NetworkMonitor.self) var networkMonitor
@@ -90,7 +88,7 @@ struct LessonsView: View, @MainActor FallbackView, PostData {
             .fallbackView(viewState: viewState)
             .overlay(alignment: .bottom) {
                 if showCreate {
-                    CreateLessonView(courseId: course.id, showCreate: $showCreate)
+                    createLessonView
                         .transition(.slide)
                         .environment(refreshController)
                         .glassEffect()
@@ -101,13 +99,14 @@ struct LessonsView: View, @MainActor FallbackView, PostData {
             NavigationStack {
                 ChartsView(pointsArray: pointsArray)
                     .toolbar {
-                        ToolbarItem(placement: .automatic) {
-                            Button("Done", systemImage: "checkmark") {
+                        ToolbarItem(placement: .cancellationAction) {                            Button("Close", systemImage: "xmark") {
                                 showCharts = false
                             }
                         }
                     }
+                #if os(iOS)
                     .presentationDetents([.medium])
+                #endif
             }
         }
         .task {
@@ -273,27 +272,16 @@ struct LessonsView: View, @MainActor FallbackView, PostData {
             }
         }
     }
-}
-
-struct CreateLessonView: View, PostData {
-    @State var isPutOngoing = false
-
-    let courseId: UUID
-
-    @Binding var showCreate: Bool
-
+    
     @State var date: Date = .init()
 
-    @State var showApiError: Bool = false
-    @Environment(RefreshController.self) var refreshController
-    @Environment(NetworkMonitor.self) var networkMonitor
-
-    var body: some View {
+    @ViewBuilder
+    var createLessonView: some View {
         HStack {
             DatePicker("Lesson Date", selection: $date, displayedComponents: .date)
             Button("Add") {
                 Task {
-                    await postInformation(postOperation: { try await DBQuery.manualAddLesson(courseId: courseId, date: date) },
+                    await postInformation(postOperation: { try await DBQuery.manualAddLesson(courseId: course.id, date: date) },
                                           onError: { _ in showApiError = true }, logicAfterSuccess: {
                                               refreshController.triggerRefreshLessons()
                                               withAnimation {

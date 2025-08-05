@@ -91,7 +91,6 @@ struct TasksManagementView: View, @MainActor FallbackView, PostData {
                                 postOperation: { try await DBQuery.postExercises(lesson: lesson) },
                                 onError: { error in apiError = error },
                             ) {
-                                dismiss()
                                 Task {
                                     try await ApiClient.shared.removeCachedResponse(for: DBQuery.makeRequest(url: DBQuery.getAllLessonsURL(courseID), method: .GET))
                                 }

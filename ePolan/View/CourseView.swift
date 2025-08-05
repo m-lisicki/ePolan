@@ -32,6 +32,7 @@ struct CourseView: View, @MainActor FallbackView, PostData {
     @State var showApiError: Bool = false
     @State var isPutOngoing = false
     @State var apiError: ApiError?
+    @State var showUserManagement = false
     
     @State var searchText = String()
     
@@ -73,8 +74,9 @@ struct CourseView: View, @MainActor FallbackView, PostData {
             .navigationTitle("Courses")
             .overlay(alignment: .bottom) {
                 if showAddCode {
-                    JoinCourseView(isAddCodeShown: $showAddCode)
+                    joinCourseView
                         .transition(.slide)
+                        .glassEffect()
                         .padding()
                 }
             }
@@ -96,11 +98,17 @@ struct CourseView: View, @MainActor FallbackView, PostData {
                                 Label("Join course", systemImage: "person.2.badge.plus")
                             }
                             Button(action: { showCreate = true }) {
-                                Label("Create new course", systemImage: "plus.rectangle.on.rectangle")
+                                Text("Create new course")
                             }
                         }
                     }
-                    
+                ToolbarItem {
+                    Button(action: {
+                        showUserManagement = true
+                    }) {
+                        Label("User Management", systemImage: "person.crop.circle.fill")
+                    }
+                }
             }
 #if !os(macOS)
             .tabBarMinimizeBehavior(.onScrollDown)
@@ -123,6 +131,18 @@ struct CourseView: View, @MainActor FallbackView, PostData {
             .onReceive(refreshController.refreshSignalCourses) { _ in
                 Task {
                     await fetchData()
+                }
+            }
+            .sheet(isPresented: $showUserManagement) {
+                NavigationStack {
+                    UserManagementView()
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Close", systemImage: "xmark") {
+                                    showUserManagement = false
+                                }
+                            }
+                        }
                 }
             }
             .sheet(isPresented: $showArchived) {
@@ -169,37 +189,30 @@ struct CourseView: View, @MainActor FallbackView, PostData {
             groupedCourses = CourseDto.getMockData()
         #endif
     }
-}
-
-struct JoinCourseView: View, PostData {
-    @State var apiError: ApiError?
-
-    @State var isPutOngoing = false
-    @State var showApiError = false
-
-    @Environment(NetworkMonitor.self) var networkMonitor
+    
     @State var invitationCode: String = ""
-    @Binding var isAddCodeShown: Bool
+    
+    @ViewBuilder
+    var joinCourseView: some View {
 
-    var body: some View {
-        HStack {
-            TextField("Enter invitation code", text: $invitationCode)
-            Button("Join") {
-                Task {
-                    await postInformation(
-                        postOperation: { try await DBQuery.joinCourse(invitationCode: invitationCode) },
-                        onError: { error in apiError = error },
-                        logicAfterSuccess: {
-                            withAnimation {
-                                isAddCodeShown = false
-                            }
-                        },
-                    )
+            HStack {
+                TextField("Enter invitation code", text: $invitationCode)
+                Button("Join") {
+                    Task {
+                        await postInformation(
+                            postOperation: { try await DBQuery.joinCourse(invitationCode: invitationCode) },
+                            onError: { error in apiError = error },
+                            logicAfterSuccess: {
+                                withAnimation {
+                                    showApiError = false
+                                }
+                            },
+                        )
+                    }
                 }
+                .replacedWithProgressView(isPutOngoing: isPutOngoing)
             }
-            .replacedWithProgressView(isPutOngoing: isPutOngoing)
-        }
-        .padding()
+            .padding()
     }
 }
 
